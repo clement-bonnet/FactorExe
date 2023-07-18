@@ -1,0 +1,12 @@
+defaults:
+    - _self_
+    - env: bin_pack  # [bin_pack]
+
+agent: pd  # [random, pd, factor_exe]
+
+seed: 0
+
+logger:
+    type: terminal  # [neptune, tensorboard, terminal]
+    save_checkpoint: false  # [false, true]
+    name: ${agent}_${env.name}
