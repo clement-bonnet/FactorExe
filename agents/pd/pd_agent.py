@@ -18,7 +18,6 @@ import chex
 import haiku as hk
 import jax
 import jax.numpy as jnp
-import jumanji.tree_utils
 import optax
 from jumanji.env import Environment
 from jumanji.environments.packing.bin_pack import Observation as BinPackObservation
@@ -26,11 +25,12 @@ from jumanji.environments.packing.bin_pack import State as BinPackState
 from jumanji.environments.packing.bin_pack.space import Space
 from jumanji.environments.packing.bin_pack.types import (
     EMS,
-    Item,
+    Location,
     item_from_space,
     location_from_space,
 )
 from jumanji.training.agents.base import Agent
+from jumanji.training.networks.parametric_distribution import CategoricalDistribution
 
 from networks.actor import ActorNetworks
 from training_types import ActingState, ParamsState, TrainingState, Transition
@@ -101,7 +101,7 @@ class PDAgent(Agent):
         )
 
         acting_state, data = self.rollout(acting_state)  # [T, B, ...]
-        logits = jax.vmap(self.actor_networks.policy_network.apply)(
+        logits = jax.vmap(self.actor_networks.policy_network.apply, in_axes=(None, 0))(
             params, data.observation
         )
 
@@ -109,16 +109,24 @@ class PDAgent(Agent):
         entropy = jnp.mean(
             parametric_action_distribution.entropy(logits, acting_state.key)
         )
+        target_entropy = jnp.mean(
+            parametric_action_distribution.entropy(data.target_logits, acting_state.key)
+        )
+        num_optimal_actions = jnp.mean(jnp.sum(data.target_logits == 0, axis=-1))
 
         # Compute the KL loss.
         metrics: Dict = {}
-        kl_loss = parametric_action_distribution.kl_divergence(
-            data.target_logits, logits
+        kl_loss = jnp.mean(
+            CategoricalDistribution(data.target_logits).kl_divergence(
+                CategoricalDistribution(logits)
+            )
         )
 
         metrics.update(
             kl_loss=kl_loss,
             entropy=entropy,
+            target_entropy=target_entropy,
+            num_optimal_actions=num_optimal_actions,
         )
         if data.extras:
             metrics.update(data.extras)
@@ -136,6 +144,7 @@ class PDAgent(Agent):
             self.actor_networks.parametric_action_distribution
         )
 
+        @jax.vmap
         def policy(
             observation: Any, key: chex.PRNGKey
         ) -> Tuple[chex.Array, Tuple[chex.Array, chex.Array]]:
@@ -157,7 +166,7 @@ class PDAgent(Agent):
             action = parametric_action_distribution.postprocess(raw_action)
             return action, (log_prob, logits)
 
-        return policy
+        return policy  # type: ignore
 
     def make_target_policy(
         self,
@@ -170,6 +179,7 @@ class PDAgent(Agent):
             self.actor_networks.parametric_action_distribution
         )
 
+        @jax.vmap
         def policy(
             observation: BinPackObservation,
             bin_pack_solution: BinPackState,
@@ -187,42 +197,26 @@ class PDAgent(Agent):
                 )
                 return obs_ems
 
-            def is_optimal_action1(
-                ems_id: chex.Array, item_id: chex.Array, observation: BinPackObservation
-            ) -> chex.Array:
-                obs_ems = jumanji.tree_utils.tree_slice(observation.ems, ems_id)
-                obs_ems = unnormalize_obs_ems(obs_ems, bin_pack_solution.container)
-                obs_ems_location = location_from_space(obs_ems)
-                item_location_in_solution = jumanji.tree_utils.tree_slice(
-                    bin_pack_solution.items_location, item_id
-                )
-                return (
-                    obs_ems_location == item_location_in_solution
-                ) & observation.action_mask[ems_id, item_id]
-
-            def is_optimal_action2(
-                ems: EMS, solution_item_location: Item
+            def is_optimal_action(
+                ems: EMS, solution_item_location: Location
             ) -> chex.Array:
                 ems = unnormalize_obs_ems(ems, bin_pack_solution.container)
                 ems_location = location_from_space(ems)
-                return ems_location == solution_item_location
+                return (
+                    (ems_location.x == solution_item_location.x)
+                    & (ems_location.y == solution_item_location.y)
+                    & (ems_location.z == solution_item_location.z)
+                )
 
-            actions_are_optimal1 = jax.vmap(
-                jax.vmap(is_optimal_action1, in_axes=(None, 0, None)),
-                in_axes=(0, None, None),
-            )(
-                jnp.arange(observation.action_mask.shape[-2]),
-                jnp.arange(observation.action_mask.shape[-1]),
-                observation,
-            )
-            actions_are_optimal2 = (  # noqa: F841
+            actions_are_optimal = (
                 jax.vmap(
-                    jax.vmap(is_optimal_action2, in_axes=(None, 0)), in_axes=(0, None)
+                    jax.vmap(is_optimal_action, in_axes=(None, 0)), in_axes=(0, None)
                 )(observation.ems, bin_pack_solution.items_location)
                 & observation.action_mask
             )
 
-            logits = jnp.where(actions_are_optimal1, 0.0, jnp.finfo(jnp.float32).min)
+            logits = jnp.where(actions_are_optimal, 0.0, jnp.finfo(jnp.float32).min)
+            logits = logits.reshape(*logits.shape[:-2], -1)
 
             if stochastic:
                 raw_action = parametric_action_distribution.sample_no_postprocessing(
@@ -241,7 +235,7 @@ class PDAgent(Agent):
             action = parametric_action_distribution.postprocess(raw_action)
             return action, (log_prob, logits)
 
-        return policy
+        return policy  # type: ignore
 
     def rollout(
         self,
@@ -258,8 +252,10 @@ class PDAgent(Agent):
         ) -> Tuple[ActingState, Transition]:
             timestep = acting_state.timestep
             bin_pack_solution = timestep.extras["bin_pack_solution"]
+            batch_size = timestep.reward.shape[0]
+            keys = jax.random.split(key, batch_size)
             action, (_, target_logits) = target_policy(
-                timestep.observation, bin_pack_solution, key
+                timestep.observation, bin_pack_solution, keys
             )
             next_env_state, next_timestep = self.env.step(acting_state.state, action)
 

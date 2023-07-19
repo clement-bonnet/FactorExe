@@ -16,7 +16,6 @@ from typing import Tuple
 
 import chex
 import jax
-import jax.numpy as jnp
 import optax
 from jumanji.env import Environment
 from jumanji.environments import BinPack
@@ -33,12 +32,12 @@ from jumanji.training.loggers import (
 )
 from jumanji.training.networks.actor_critic import ActorCriticNetworks
 from jumanji.training.networks.protocols import RandomPolicy
-from jumanji.training.types import ActingState, TrainingState
 from jumanji.wrappers import VmapAutoResetWrapper
 from omegaconf import DictConfig
 
 from agents.pd import PDAgent
 from networks import make_actor_networks_bin_pack, make_random_policy_bin_pack
+from training_types import ActingState, TrainingState
 from wrapper import BinPackSolutionWrapper
 
 
@@ -195,8 +194,6 @@ def setup_training_state(
         state=env_state,
         timestep=timestep,
         key=acting_key_per_worker_device,
-        episode_count=jnp.zeros(num_local_devices, float),
-        env_step_count=jnp.zeros(num_local_devices, float),
     )
 
     # Build the training state.

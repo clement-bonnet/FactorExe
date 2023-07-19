@@ -23,16 +23,17 @@ import omegaconf
 from jumanji.training import utils
 from jumanji.training.agents.random import RandomAgent
 from jumanji.training.loggers import TerminalLogger
-from jumanji.training.setup_train import (
+from jumanji.training.timer import Timer
+from jumanji.training.types import TrainingState
+from tqdm.auto import trange
+
+from setup_train import (
     setup_agent,
     setup_env,
     setup_evaluators,
     setup_logger,
     setup_training_state,
 )
-from jumanji.training.timer import Timer
-from jumanji.training.types import TrainingState
-from tqdm.auto import trange
 
 
 @hydra.main(config_path="configs", config_name="config.yaml")
@@ -75,31 +76,31 @@ def train(cfg: omegaconf.DictConfig, log_compiles: bool = False) -> None:
         ):
             env_steps = i * num_steps_per_epoch
 
-            # Evaluation
-            key, stochastic_eval_key, greedy_eval_key = jax.random.split(key, 3)
-            # Stochastic evaluation
-            with eval_timer:
-                metrics = stochastic_eval.run_evaluation(
-                    training_state.params_state, stochastic_eval_key
-                )
-                jax.block_until_ready(metrics)
-            logger.write(
-                data=utils.first_from_device(metrics),
-                label="eval_stochastic",
-                env_steps=env_steps,
-            )
-            if not isinstance(agent, RandomAgent):
-                # Greedy evaluation
-                with eval_timer:
-                    metrics = greedy_eval.run_evaluation(
-                        training_state.params_state, greedy_eval_key
-                    )
-                    jax.block_until_ready(metrics)
-                logger.write(
-                    data=utils.first_from_device(metrics),
-                    label="eval_greedy",
-                    env_steps=env_steps,
-                )
+            # # Evaluation
+            # key, stochastic_eval_key, greedy_eval_key = jax.random.split(key, 3)
+            # # Stochastic evaluation
+            # with eval_timer:
+            #     metrics = stochastic_eval.run_evaluation(
+            #         training_state.params_state, stochastic_eval_key
+            #     )
+            #     jax.block_until_ready(metrics)
+            # logger.write(
+            #     data=utils.first_from_device(metrics),
+            #     label="eval_stochastic",
+            #     env_steps=env_steps,
+            # )
+            # if not isinstance(agent, RandomAgent):
+            #     # Greedy evaluation
+            #     with eval_timer:
+            #         metrics = greedy_eval.run_evaluation(
+            #             training_state.params_state, greedy_eval_key
+            #         )
+            #         jax.block_until_ready(metrics)
+            #     logger.write(
+            #         data=utils.first_from_device(metrics),
+            #         label="eval_greedy",
+            #         env_steps=env_steps,
+            #     )
 
             # Training
             with train_timer:

@@ -146,7 +146,7 @@ def make_actor_network_bin_pack(
         )
         embeddings = torso(observation)
         ems_embeddings, items_embeddings = jnp.split(
-            embeddings, observation.ems_mask.shape[-1], axis=-2
+            embeddings, (observation.ems_mask.shape[-1],), axis=-2
         )
 
         # EMS projection.
