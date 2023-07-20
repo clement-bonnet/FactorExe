@@ -1,9 +1,9 @@
 name: bin_pack
 kwargs:
     obs_num_ems: 40
-    max_num_items: 20
+    max_num_items: 15
     max_num_ems: 40
-    split_num_same_items: 2
+    split_num_same_items: 3
 
 
 network:
@@ -13,14 +13,14 @@ network:
     transformer_mlp_units: [512]
 
 training:
-    num_epochs: 50
-    num_learner_steps_per_epoch: 1
-    n_steps: 30
-    total_batch_size: 64
+    num_epochs: 200
+    num_learner_steps_per_epoch: 100
+    n_steps: 20
+    total_batch_size: 512
 
 evaluation:
-    eval_total_batch_size: 100
-    greedy_eval_total_batch_size: 100
+    eval_total_batch_size: 1024
+    greedy_eval_total_batch_size: 1024
 
 a2c:
-    learning_rate: 1e-4
+    learning_rate: 2e-4
