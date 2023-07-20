@@ -94,7 +94,7 @@ class Evaluator:
             )
             action = acting_policy(observation, action_key)
 
-            # ###
+            # ### Uncomment to evaluate with target policy.
             # assert isinstance(self.agent, PDAgent)
             # target_policy = self.agent.make_target_policy(self.stochastic)
             # bin_pack_solution = jax.tree_util.tree_map(

@@ -58,9 +58,12 @@ class BinPackSolutionWrapper(BinPack):
 
 
 class VmapAutoResetWrapperBinPackSolution(VmapAutoResetWrapper):
+    def __init__(self, env: BinPackSolutionWrapper):
+        super().__init__(env)
+
     def _auto_reset(
-        self, state: State, timestep: TimeStep
-    ) -> Tuple[State, TimeStep[Observation]]:
+        self, state: AugmentedState, timestep: TimeStep
+    ) -> Tuple[AugmentedState, TimeStep[Observation]]:
         """Reset the state and overwrite `timestep.observation` with the reset observation
         if the episode has terminated.
         """
