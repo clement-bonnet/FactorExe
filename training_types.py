@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, NamedTuple, Optional
+from typing import Dict, NamedTuple, Optional
 
 import chex
 import haiku as hk
 import optax
-from jumanji.types import TimeStep
 
 
 class Transition(NamedTuple):
@@ -42,18 +41,3 @@ class ParamsState(NamedTuple):
     params: ActorCriticParams
     opt_state: optax.OptState
     update_count: float
-
-
-class ActingState(NamedTuple):
-    """Container for data used during the acting in the environment."""
-
-    state: Any
-    timestep: TimeStep
-    key: chex.PRNGKey
-
-
-class TrainingState(NamedTuple):
-    """Container for data used during the training of an agent acting in an environment."""
-
-    params_state: Optional[ParamsState]
-    acting_state: ActingState

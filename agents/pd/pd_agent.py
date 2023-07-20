@@ -31,9 +31,10 @@ from jumanji.environments.packing.bin_pack.types import (
 )
 from jumanji.training.agents.base import Agent
 from jumanji.training.networks.parametric_distribution import CategoricalDistribution
+from jumanji.training.types import ActingState, TrainingState
 
 from networks.actor import ActorNetworks
-from training_types import ActingState, ParamsState, TrainingState, Transition
+from training_types import ParamsState, Transition
 
 
 class PDAgent(Agent):
@@ -263,6 +264,10 @@ class PDAgent(Agent):
                 state=next_env_state,
                 timestep=next_timestep,
                 key=key,
+                episode_count=acting_state.episode_count
+                + jax.lax.psum(next_timestep.last().sum(), "devices"),
+                env_step_count=acting_state.env_step_count
+                + jax.lax.psum(self.batch_size_per_device, "devices"),
             )
 
             transition = Transition(
