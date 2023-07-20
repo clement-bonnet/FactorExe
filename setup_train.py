@@ -22,7 +22,6 @@ from jumanji.environments import BinPack
 from jumanji.environments.packing.bin_pack import generator as bin_pack_generator
 from jumanji.training.agents.base import Agent
 from jumanji.training.agents.random import RandomAgent
-from jumanji.training.evaluator import Evaluator
 from jumanji.training.loggers import (
     Logger,
     NeptuneLogger,
@@ -36,6 +35,7 @@ from jumanji.wrappers import VmapAutoResetWrapper
 from omegaconf import DictConfig
 
 from agents.pd import PDAgent
+from evaluator import Evaluator
 from networks import make_actor_networks_bin_pack, make_random_policy_bin_pack
 from training_types import ActingState, TrainingState
 from wrapper import BinPackSolutionWrapper
