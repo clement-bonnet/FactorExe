@@ -22,11 +22,11 @@ import jax.numpy as jnp
 import omegaconf
 from jumanji.training import utils
 from jumanji.training.agents.random import RandomAgent
-from jumanji.training.loggers import TerminalLogger
 from jumanji.training.timer import Timer
 from jumanji.training.types import TrainingState
 from tqdm.auto import trange
 
+from loggers import TerminalLogger
 from setup_train import (
     setup_agent,
     setup_env,
