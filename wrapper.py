@@ -17,7 +17,9 @@ class BinPackSolutionWrapper(BinPack):
 
     def reset(self, key: chex.PRNGKey) -> Tuple[AugmentedState, TimeStep[Observation]]:
         bin_pack_solution = self.generator.generate_solution(key)
-        state = self.generator._unpack_items(bin_pack_solution)
+        # Avoid side effects on the bin_pack_solution.
+        bin_pack_solution_copy = State(**vars(bin_pack_solution))
+        state = self.generator._unpack_items(bin_pack_solution_copy)
         # Make the observation.
         state, observation, extras = self._make_observation_and_extras(state)
 
