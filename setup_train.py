@@ -33,13 +33,12 @@ from jumanji.training.loggers import (
 from jumanji.training.networks.actor_critic import ActorCriticNetworks
 from jumanji.training.networks.protocols import RandomPolicy
 from jumanji.training.types import ActingState, TrainingState
-from jumanji.wrappers import VmapAutoResetWrapper
 from omegaconf import DictConfig
 
 from agents.pd import PDAgent
 from evaluator import Evaluator
 from networks import make_actor_networks_bin_pack, make_random_policy_bin_pack
-from wrapper import BinPackSolutionWrapper
+from wrapper import BinPackSolutionWrapper, VmapAutoResetWrapperBinPackSolution
 
 
 def setup_logger(cfg: DictConfig) -> Logger:
@@ -84,7 +83,7 @@ def _make_raw_env(cfg: DictConfig) -> Environment:
 
 def setup_env(cfg: DictConfig) -> Environment:
     env = _make_raw_env(cfg)
-    env = VmapAutoResetWrapper(env)
+    env = VmapAutoResetWrapperBinPackSolution(env)
     return env
 
 

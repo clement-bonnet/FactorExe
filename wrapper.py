@@ -1,9 +1,11 @@
 from typing import NamedTuple, Tuple
 
 import chex
+import jax
 import jax.numpy as jnp
 from jumanji.environments.packing.bin_pack import BinPack, Observation, State
 from jumanji.types import TimeStep, restart
+from jumanji.wrappers import VmapAutoResetWrapper
 
 
 class AugmentedState(NamedTuple):
@@ -19,13 +21,15 @@ class BinPackSolutionWrapper(BinPack):
         bin_pack_solution = self.generator.generate_solution(key)
         # Avoid side effects on the bin_pack_solution.
         bin_pack_solution_copy = State(**vars(bin_pack_solution))
-        state = self.generator._unpack_items(bin_pack_solution_copy)
+        state = self.generator._unpack_items(bin_pack_solution)
         # Make the observation.
         state, observation, extras = self._make_observation_and_extras(state)
 
         ### Newly added
         augmented_state = AugmentedState(
-            original_state=state, bin_pack_solution=bin_pack_solution, key=state.key
+            original_state=state,
+            bin_pack_solution=bin_pack_solution_copy,
+            key=state.key,
         )
         ###
 
@@ -34,7 +38,7 @@ class BinPackSolutionWrapper(BinPack):
             extras.update(invalid_ems_from_env=jnp.array(False))
 
         ### Newly added
-        extras.update(bin_pack_solution=bin_pack_solution)
+        extras.update(bin_pack_solution=bin_pack_solution_copy)
         ###
 
         timestep = restart(observation, extras)
@@ -51,3 +55,32 @@ class BinPackSolutionWrapper(BinPack):
         )
         timestep.extras.update(bin_pack_solution=bin_pack_solution)
         return augmented_state, timestep
+
+
+class VmapAutoResetWrapperBinPackSolution(VmapAutoResetWrapper):
+    def _auto_reset(
+        self, state: State, timestep: TimeStep
+    ) -> Tuple[State, TimeStep[Observation]]:
+        """Reset the state and overwrite `timestep.observation` with the reset observation
+        if the episode has terminated.
+        """
+        if not hasattr(state, "key"):
+            raise AttributeError(
+                "This wrapper assumes that the state has attribute key which is used"
+                " as the source of randomness for automatic reset"
+            )
+
+        # Make sure that the random key in the environment changes at each call to reset.
+        # State is a type variable hence it does not have key type hinted, so we type ignore.
+        key, _ = jax.random.split(state.key)
+        state, reset_timestep = self._env.reset(key)
+
+        # Replace observation with reset observation.
+        timestep.extras.update(
+            bin_pack_solution=reset_timestep.extras["bin_pack_solution"]
+        )
+        timestep = timestep.replace(  # type: ignore
+            observation=reset_timestep.observation,
+        )
+
+        return state, timestep
