@@ -2,7 +2,7 @@ defaults:
     - _self_
     - env: bin_pack  # [bin_pack]
 
-agent: pd  # [random, pd, factor_exe]
+agent: factor_exe  # [random, pd, factor_exe]
 
 seed: 0
 
