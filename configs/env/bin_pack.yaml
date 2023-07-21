@@ -21,8 +21,8 @@ training:
     total_batch_size: 512
 
 evaluation:
-    eval_total_batch_size: 1024
-    greedy_eval_total_batch_size: 1024
+    eval_total_batch_size: 8192
+    greedy_eval_total_batch_size: 8192
 
 agent:
     learning_rate: 2e-4
