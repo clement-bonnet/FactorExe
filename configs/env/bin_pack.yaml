@@ -11,6 +11,8 @@ network:
     transformer_num_heads: 8
     transformer_key_size: 16
     transformer_mlp_units: [512]
+    factor_iterations: 2  # Only for FactorExeAgent
+    factor_vocab_size: 10  # Only for FactorExeAgent
 
 training:
     num_epochs: 200
@@ -22,5 +24,6 @@ evaluation:
     eval_total_batch_size: 1024
     greedy_eval_total_batch_size: 1024
 
-a2c:
+agent:
     learning_rate: 2e-4
+    reinforce_loss_coeff: 1.0  # Only for FactorExeAgent

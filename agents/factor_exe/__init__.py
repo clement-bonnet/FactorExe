@@ -12,6 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from networks.actor import make_actor_networks_bin_pack
-from networks.actor_factor_exe import make_actor_factor_exe_networks_bin_pack
-from networks.random import make_random_policy_bin_pack
+from agents.factor_exe.factor_exe_agent import FactorExeAgent

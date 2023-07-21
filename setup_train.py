@@ -24,15 +24,21 @@ from jumanji.environments.packing.bin_pack import generator as bin_pack_generato
 from jumanji.training.agents.base import Agent
 from jumanji.training.agents.random import RandomAgent
 from jumanji.training.loggers import Logger, NoOpLogger, TensorboardLogger
-from jumanji.training.networks.actor_critic import ActorCriticNetworks
 from jumanji.training.networks.protocols import RandomPolicy
 from jumanji.training.types import ActingState, TrainingState
 from omegaconf import DictConfig
 
+from agents.factor_exe import FactorExeAgent
 from agents.pd import PDAgent
 from evaluator import Evaluator
 from loggers import NeptuneLogger, TerminalLogger
-from networks import make_actor_networks_bin_pack, make_random_policy_bin_pack
+from networks import (
+    make_actor_factor_exe_networks_bin_pack,
+    make_actor_networks_bin_pack,
+    make_random_policy_bin_pack,
+)
+from networks.actor import ActorNetworks
+from networks.actor_factor_exe import ActorFactorExeNetworks
 from wrapper import BinPackSolutionWrapper, VmapAutoResetWrapperBinPackSolution
 
 
@@ -94,7 +100,7 @@ def setup_agent(cfg: DictConfig, env: Environment) -> Agent:
         )
     elif cfg.agent == "pd":
         actor_networks = _setup_actor_neworks(cfg, env)
-        optimizer = optax.adam(cfg.env.a2c.learning_rate)
+        optimizer = optax.adam(cfg.env.agent.learning_rate)
         agent = PDAgent(
             env=env,
             n_steps=cfg.env.training.n_steps,
@@ -103,7 +109,17 @@ def setup_agent(cfg: DictConfig, env: Environment) -> Agent:
             optimizer=optimizer,
         )
     elif cfg.agent == "factor_exe":
-        raise NotImplementedError
+        actor_factor_exe_networks = _setup_actor_factor_exe_neworks(cfg, env)
+        optimizer = optax.adam(cfg.env.agent.learning_rate)
+        agent = FactorExeAgent(
+            env=env,
+            n_steps=cfg.env.training.n_steps,
+            total_batch_size=cfg.env.training.total_batch_size,
+            actor_factor_exe_networks=actor_factor_exe_networks,
+            optimizer=optimizer,
+            factor_iterations=cfg.env.network.factor_iterations,
+            reinforce_loss_coeff=cfg.env.agent.reinforce_loss_coeff,
+        )
     else:
         raise ValueError(
             f"Expected agent name to be in ['random', 'pd', 'factor_exe'], got {cfg.agent}."
@@ -121,7 +137,7 @@ def _setup_random_policy(cfg: DictConfig, env: Environment) -> RandomPolicy:
     return random_policy
 
 
-def _setup_actor_neworks(cfg: DictConfig, env: Environment) -> ActorCriticNetworks:
+def _setup_actor_neworks(cfg: DictConfig, env: Environment) -> ActorNetworks:
     assert cfg.agent == "pd"
     if cfg.env.name == "bin_pack":
         assert isinstance(env.unwrapped, BinPack)
@@ -131,6 +147,26 @@ def _setup_actor_neworks(cfg: DictConfig, env: Environment) -> ActorCriticNetwor
             transformer_num_heads=cfg.env.network.transformer_num_heads,
             transformer_key_size=cfg.env.network.transformer_key_size,
             transformer_mlp_units=cfg.env.network.transformer_mlp_units,
+        )
+    else:
+        raise ValueError(f"Environment name not found. Got {cfg.env.name}.")
+    return actor_networks
+
+
+def _setup_actor_factor_exe_neworks(
+    cfg: DictConfig, env: Environment
+) -> ActorFactorExeNetworks:
+    assert cfg.agent == "factor_exe"
+    if cfg.env.name == "bin_pack":
+        assert isinstance(env.unwrapped, BinPack)
+        actor_networks = make_actor_factor_exe_networks_bin_pack(
+            bin_pack=env.unwrapped,
+            num_transformer_layers=cfg.env.network.num_transformer_layers,
+            transformer_num_heads=cfg.env.network.transformer_num_heads,
+            transformer_key_size=cfg.env.network.transformer_key_size,
+            transformer_mlp_units=cfg.env.network.transformer_mlp_units,
+            factor_iterations=cfg.env.network.factor_iterations,
+            factor_vocab_size=cfg.env.network.factor_vocab_size,
         )
     else:
         raise ValueError(f"Environment name not found. Got {cfg.env.name}.")

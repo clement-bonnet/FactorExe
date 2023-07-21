@@ -25,6 +25,7 @@ from jumanji.training.agents.base import Agent
 from jumanji.training.agents.random import RandomAgent
 from jumanji.training.types import ActingState, ParamsState
 
+from agents.factor_exe import FactorExeAgent
 from agents.pd import PDAgent
 
 
@@ -64,7 +65,7 @@ class Evaluator:
         key: chex.PRNGKey,
     ) -> Dict:
         policy = self.agent.make_policy(policy_params, self.stochastic)
-        if isinstance(self.agent, PDAgent):
+        if isinstance(self.agent, (PDAgent, FactorExeAgent)):
 
             def acting_policy(observation: Any, key: chex.PRNGKey) -> chex.Array:
                 keys = jax.random.split(key, 1)
@@ -151,7 +152,7 @@ class Evaluator:
             policy_params = params_state.params.actor
         elif isinstance(self.agent, RandomAgent):
             policy_params = None
-        elif isinstance(self.agent, PDAgent):
+        elif isinstance(self.agent, (PDAgent, FactorExeAgent)):
             policy_params = params_state.params
         else:
             raise ValueError

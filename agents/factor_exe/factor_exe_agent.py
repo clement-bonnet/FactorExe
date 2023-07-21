@@ -33,31 +33,38 @@ from jumanji.training.agents.base import Agent
 from jumanji.training.networks.parametric_distribution import CategoricalDistribution
 from jumanji.training.types import ActingState, TrainingState
 
-from networks.actor import ActorNetworks
+from networks.actor_factor_exe import ActorFactorExeNetworks
 from training_types import ParamsState, Transition
 
 
-class PDAgent(Agent):
+class FactorExeAgent(Agent):
     def __init__(
         self,
         env: Environment,
         n_steps: int,
         total_batch_size: int,
-        actor_networks: ActorNetworks,
+        actor_factor_exe_networks: ActorFactorExeNetworks,
         optimizer: optax.GradientTransformation,
+        factor_iterations: int,
+        reinforce_loss_coeff: float,
     ) -> None:
         super().__init__(total_batch_size=total_batch_size)
         self.env = env
         self.observation_spec = env.observation_spec()
         self.n_steps = n_steps
-        self.actor_networks = actor_networks
+        self.actor_factor_exe_networks = actor_factor_exe_networks
         self.optimizer = optimizer
+        self.factor_iterations = factor_iterations
+        self.reinforce_loss_coeff = reinforce_loss_coeff
 
     def init_params(self, key: chex.PRNGKey) -> ParamsState:
         dummy_obs = jax.tree_util.tree_map(
             lambda x: x[None, ...], self.observation_spec.generate_value()
         )  # Add batch dim
-        params = self.actor_networks.policy_network.init(key, dummy_obs)
+        keys = jax.random.split(key, 1)
+        params = self.actor_factor_exe_networks.policy_network.init(
+            key, dummy_obs, keys
+        )
         opt_state = self.optimizer.init(params)
         params_state = ParamsState(
             params=params,
@@ -72,7 +79,7 @@ class PDAgent(Agent):
                 "Expected params_state to be of type ParamsState, got "
                 f"type {type(training_state.params_state)}."
             )
-        grad, (acting_state, metrics) = jax.grad(self.pd_loss, has_aux=True)(
+        grad, (acting_state, metrics) = jax.grad(self.factor_exe_loss, has_aux=True)(
             training_state.params_state.params,
             training_state.acting_state,
         )
@@ -91,46 +98,60 @@ class PDAgent(Agent):
         )
         return training_state, metrics
 
-    def pd_loss(
+    def factor_exe_loss(
         self,
         params: hk.Params,
         acting_state: ActingState,
     ) -> Tuple[float, Tuple[ActingState, Dict]]:
         parametric_action_distribution = (
-            self.actor_networks.parametric_action_distribution
+            self.actor_factor_exe_networks.parametric_action_distribution
         )
 
         acting_state, data = self.rollout(acting_state)  # [T, B, ...]
-        logits = jax.vmap(self.actor_networks.policy_network.apply, in_axes=(None, 0))(
-            params, data.observation
+        key, entropy_key = jax.random.split(acting_state.key, 2)
+        keys = jax.random.split(key, self.n_steps * self.batch_size_per_device).reshape(
+            self.n_steps, self.batch_size_per_device, -1
         )
+        # TODO: can sample multiple factors to reduce the variance of the reinforce gradient.
+        logits, factors, factors_logits = jax.vmap(
+            self.actor_factor_exe_networks.policy_network.apply, in_axes=(None, 0, 0)
+        )(params, data.observation, keys)
 
         # Compute the entropy.
-        entropy = jnp.mean(
-            parametric_action_distribution.entropy(logits, acting_state.key)
-        )
+        entropy = jnp.mean(parametric_action_distribution.entropy(logits, entropy_key))
         target_entropy = jnp.mean(
-            parametric_action_distribution.entropy(data.target_logits, acting_state.key)
+            parametric_action_distribution.entropy(data.target_logits, entropy_key)
         )
         num_optimal_actions = jnp.mean(jnp.sum(data.target_logits == 0, axis=-1))
 
-        # Compute the KL loss.
         metrics: Dict = {}
-        kl_loss = jnp.mean(
-            CategoricalDistribution(data.target_logits).kl_divergence(
-                CategoricalDistribution(logits)
-            )
+        # Compute the KL loss.
+        kl_losses = CategoricalDistribution(data.target_logits).kl_divergence(
+            CategoricalDistribution(logits)
         )
+        kl_loss = jnp.mean(kl_losses)
+
+        # Compute the reinforce loss.
+        factors_log_prob = CategoricalDistribution(factors_logits).log_prob(factors)
+        reinforce_loss = jnp.mean(
+            -jax.lax.stop_gradient(kl_losses)[..., None] * factors_log_prob,
+        )
+        factors_entropy = jnp.mean(CategoricalDistribution(factors_logits).entropy())
+
+        total_loss = kl_loss + self.reinforce_loss_coeff * reinforce_loss
 
         metrics.update(
             kl_loss=kl_loss,
+            reinforce_loss=reinforce_loss,
+            total_loss=total_loss,
             entropy=entropy,
+            factors_entropy=factors_entropy,
             target_entropy=target_entropy,
             num_optimal_actions=num_optimal_actions,
         )
         if data.extras:
             metrics.update(data.extras)
-        return kl_loss, (acting_state, metrics)
+        return total_loss, (acting_state, metrics)
 
     def make_policy(
         self,
@@ -139,16 +160,21 @@ class PDAgent(Agent):
     ) -> Callable[
         [Any, chex.PRNGKey], Tuple[chex.Array, Tuple[chex.Array, chex.Array]]
     ]:
-        policy_network = self.actor_networks.policy_network
+        policy_network = self.actor_factor_exe_networks.policy_network
         parametric_action_distribution = (
-            self.actor_networks.parametric_action_distribution
+            self.actor_factor_exe_networks.parametric_action_distribution
         )
 
         @jax.vmap
         def policy(
             observation: Any, key: chex.PRNGKey
         ) -> Tuple[chex.Array, Tuple[chex.Array, chex.Array]]:
-            logits = policy_network.apply(params, observation)
+            forward_key, key = jax.random.split(key)
+            observation, forward_key = jax.tree_map(
+                lambda x: x[None], (observation, forward_key)
+            )
+            logits, *_ = policy_network.apply(params, observation, forward_key)
+            logits = jnp.squeeze(logits, axis=0)
             if stochastic:
                 raw_action = parametric_action_distribution.sample_no_postprocessing(
                     logits, key
@@ -176,7 +202,7 @@ class PDAgent(Agent):
         Tuple[chex.Array, Tuple[chex.Array, chex.Array]],
     ]:
         parametric_action_distribution = (
-            self.actor_networks.parametric_action_distribution
+            self.actor_factor_exe_networks.parametric_action_distribution
         )
 
         @jax.vmap
