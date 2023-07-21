@@ -26,4 +26,4 @@ evaluation:
 
 agent:
     learning_rate: 2e-4
-    reinforce_loss_coeff: 100.0  # Only for FactorExeAgent
+    reinforce_loss_coeff: 1.0  # Only for FactorExeAgent

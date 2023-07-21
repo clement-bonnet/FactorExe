@@ -127,6 +127,7 @@ class BinPackFactorTorso(hk.Module):
             all_embeddings = jnp.concatenate([embeddings, factor_embeddings], axis=-2)
 
             mask = mask.at[..., -(self.factor_iterations - i)].set(True)
+            # TODO: check that the mask is correct.
             self_attention_mask = self._make_self_attention_mask(mask)
 
             # Transformer encoder
