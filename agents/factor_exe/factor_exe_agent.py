@@ -109,17 +109,24 @@ class FactorExeAgent(Agent):
 
         acting_state, data = self.rollout(acting_state)  # [T, B, ...]
         key, entropy_key = jax.random.split(acting_state.key, 2)
-        num_factors = 5
-        keys = jax.random.split(
-            key, num_factors * self.n_steps * self.batch_size_per_device
-        ).reshape(num_factors, self.n_steps, self.batch_size_per_device, -1)
+        # num_factors = 5
+        # keys = jax.random.split(
+        #     key, num_factors * self.n_steps * self.batch_size_per_device
+        # ).reshape(num_factors, self.n_steps, self.batch_size_per_device, -1)
+        keys = jax.random.split(key, self.n_steps * self.batch_size_per_device).reshape(
+            self.n_steps, self.batch_size_per_device, -1
+        )
 
+        # logits, factors, factors_logits = jax.vmap(
+        #     jax.vmap(
+        #         self.actor_factor_exe_networks.policy_network.apply,
+        #         in_axes=(None, 0, 0),
+        #     ),
+        #     in_axes=(None, None, 0),
+        # )(params, data.observation, keys)
         logits, factors, factors_logits = jax.vmap(
-            jax.vmap(
-                self.actor_factor_exe_networks.policy_network.apply,
-                in_axes=(None, 0, 0),
-            ),
-            in_axes=(None, None, 0),
+            self.actor_factor_exe_networks.policy_network.apply,
+            in_axes=(None, 0, 0),
         )(params, data.observation, keys)
 
         # Compute the entropy.
@@ -138,10 +145,11 @@ class FactorExeAgent(Agent):
 
         # Compute the reinforce loss.
         factors_log_prob = CategoricalDistribution(factors_logits).log_prob(factors)
-        # TODO: remove bias by substracting mean of all but one.
-        kl_losses_norm = kl_losses - kl_losses.mean(axis=0, keepdims=True)
+        # # TODO: remove bias by substracting mean of all but one.
+        # kl_losses = kl_losses - kl_losses.mean(axis=0, keepdims=True)
+
         reinforce_loss = jnp.mean(
-            jax.lax.stop_gradient(kl_losses_norm)[..., None] * factors_log_prob,
+            jax.lax.stop_gradient(kl_losses)[..., None] * factors_log_prob,
         )
         factors_entropies = CategoricalDistribution(factors_logits).entropy()
         metrics.update(
