@@ -83,17 +83,16 @@ class BinPackFactorTorso(hk.Module):
         self.factor_iterations = factor_iterations
         self.factor_vocab_size = factor_vocab_size
         self.model_size = transformer_num_heads * transformer_key_size
-        self.item_embedding_layer = hk.Linear(self.model_size, name="item_embedding")
-        self.ems_embedding_layer = hk.Linear(self.model_size, name="ems_embedding")
         self.factor_embedding_layer = hk.Embed(
             vocab_size=self.factor_vocab_size,
             embed_dim=self.model_size,
             name="factor_embedding",
         )
-        self.factor_embedding_projection = hk.Linear(
-            self.factor_vocab_size, name="factor_embedding_projection"
-        )
-        self.transformer_blocks = [
+
+    def __call__(
+        self, observation: Observation, key: chex.Array
+    ) -> Tuple[chex.Array, chex.Array, chex.Array]:
+        transformer_blocks = [
             TransformerBlock(
                 num_heads=self.transformer_num_heads,
                 key_size=self.transformer_key_size,
@@ -104,10 +103,10 @@ class BinPackFactorTorso(hk.Module):
             )
             for block_id in range(self.num_transformer_layers)
         ]
+        factor_embedding_projection = hk.Linear(
+            self.factor_vocab_size, name="factor_embedding_projection"
+        )
 
-    def __call__(
-        self, observation: Observation, key: chex.Array
-    ) -> Tuple[chex.Array, chex.Array, chex.Array]:
         # EMS encoder
         ems_mask = observation.ems_mask
         ems_embeddings = self.embed_ems(observation.ems)
@@ -131,7 +130,7 @@ class BinPackFactorTorso(hk.Module):
             self_attention_mask = self._make_self_attention_mask(mask)
 
             # Transformer encoder
-            for transformer_block in self.transformer_blocks:
+            for transformer_block in transformer_blocks:
                 all_embeddings = transformer_block(
                     all_embeddings, all_embeddings, all_embeddings, self_attention_mask
                 )
@@ -141,9 +140,7 @@ class BinPackFactorTorso(hk.Module):
                 (embeddings.shape[-2],),
                 axis=-2,
             )
-            factor_logits = self.factor_embedding_projection(
-                factor_embeddings[..., i, :]
-            )
+            factor_logits = factor_embedding_projection(factor_embeddings[..., i, :])
             factor = jax.random.categorical(key, factor_logits, axis=-1)
             factors = factors.at[..., i].set(factor)
             return (factors, mask), factor_logits
@@ -171,7 +168,7 @@ class BinPackFactorTorso(hk.Module):
         self_attention_mask = self._make_self_attention_mask(mask)
 
         # Transformer encoder
-        for transformer_block in self.transformer_blocks:
+        for transformer_block in transformer_blocks:
             all_embeddings = transformer_block(
                 all_embeddings, all_embeddings, all_embeddings, self_attention_mask
             )
@@ -188,14 +185,14 @@ class BinPackFactorTorso(hk.Module):
         # Stack the 6 EMS attributes into a single vector [x1, x2, y1, y2, z1, z2].
         ems_leaves = jnp.stack(jax.tree_util.tree_leaves(ems), axis=-1)
         # Projection of the EMSs.
-        embeddings = self.ems_embedding_layer(ems_leaves)
+        embeddings = hk.Linear(self.model_size, name="ems_embedding")(ems_leaves)
         return embeddings
 
     def embed_items(self, items: Item) -> chex.Array:
         # Stack the 3 items attributes into a single vector [x_len, y_len, z_len].
         items_leaves = jnp.stack(jax.tree_util.tree_leaves(items), axis=-1)
         # Projection of the EMSs.
-        embeddings = self.item_embedding_layer(items_leaves)
+        embeddings = hk.Linear(self.model_size, name="item_embedding")(items_leaves)
         return embeddings
 
     def embed_factors(self, factors: chex.Array) -> chex.Array:
