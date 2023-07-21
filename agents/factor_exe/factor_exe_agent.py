@@ -109,7 +109,7 @@ class FactorExeAgent(Agent):
 
         acting_state, data = self.rollout(acting_state)  # [T, B, ...]
         key, entropy_key = jax.random.split(acting_state.key, 2)
-        num_factors = 10
+        num_factors = 5
         keys = jax.random.split(
             key, num_factors * self.n_steps * self.batch_size_per_device
         ).reshape(num_factors, self.n_steps, self.batch_size_per_device, -1)
