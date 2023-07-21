@@ -15,7 +15,7 @@ network:
     factor_vocab_size: 10  # Only for FactorExeAgent
 
 training:
-    num_epochs: 200
+    num_epochs: 500
     num_learner_steps_per_epoch: 100
     n_steps: 20
     total_batch_size: 512
