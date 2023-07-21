@@ -136,7 +136,14 @@ class FactorExeAgent(Agent):
         reinforce_loss = jnp.mean(
             -jax.lax.stop_gradient(kl_losses)[..., None] * factors_log_prob,
         )
-        factors_entropy = jnp.mean(CategoricalDistribution(factors_logits).entropy())
+        factors_entropies = CategoricalDistribution(factors_logits).entropy()
+        metrics.update(
+            **{
+                f"factor_{i}_entropy": jnp.mean(factors_entropies[..., i])
+                for i in range(factors_entropies.shape[-1])
+            }
+        )
+        factors_entropy = jnp.mean(factors_entropies)
 
         total_loss = kl_loss + self.reinforce_loss_coeff * reinforce_loss
 
