@@ -9,4 +9,4 @@ seed: 0
 logger:
     type: neptune  # [neptune, tensorboard, terminal]
     save_checkpoint: false  # [false, true]
-    name: ${agent}_no_rl_loss_${env.name}
+    name: ${agent}_${env.name}
