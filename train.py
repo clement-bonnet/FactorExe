@@ -58,7 +58,7 @@ def train(cfg: omegaconf.DictConfig, log_compiles: bool = False) -> None:
         out_var_name="metrics", num_steps_per_timing=num_steps_per_epoch
     )
 
-    @functools.partial(jax.pmap, axis_name="devices")
+    @functools.partial(jax.pmap, axis_name="devices", donate_argnums=0)
     def epoch_fn(training_state: TrainingState) -> Tuple[TrainingState, Dict]:
         training_state, metrics = jax.lax.scan(
             lambda training_state, _: agent.run_epoch(training_state),
