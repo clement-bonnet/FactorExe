@@ -139,9 +139,9 @@ class FactorExeAgent(Agent):
         # Compute the reinforce loss.
         factors_log_prob = CategoricalDistribution(factors_logits).log_prob(factors)
         # TODO: remove bias by substracting mean of all but one.
-        advantages = kl_losses - kl_losses.mean(axis=0, keepdims=True)
+        kl_losses_norm = kl_losses - kl_losses.mean(axis=0, keepdims=True)
         reinforce_loss = jnp.mean(
-            -jax.lax.stop_gradient(advantages)[..., None] * factors_log_prob,
+            jax.lax.stop_gradient(kl_losses_norm)[..., None] * factors_log_prob,
         )
         factors_entropies = CategoricalDistribution(factors_logits).entropy()
         metrics.update(
