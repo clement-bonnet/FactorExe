@@ -110,11 +110,17 @@ def setup_agent(cfg: DictConfig, env: Environment) -> Agent:
         )
     elif cfg.agent == "factor_exe":
         actor_factor_exe_networks = _setup_actor_factor_exe_neworks(cfg, env)
-        optimizer = optax.adam(cfg.env.agent.learning_rate)
+        every_k_schedule = cfg.env.training.every_k_schedule
+        optimizer = optax.MultiSteps(
+            optax.adam(cfg.env.agent.learning_rate), every_k_schedule=every_k_schedule
+        )
+        # Divide the total batch size by the number of multi-steps.
+        assert cfg.env.training.total_batch_size % every_k_schedule == 0
+        total_batch_size = cfg.env.training.total_batch_size // every_k_schedule
         agent = FactorExeAgent(
             env=env,
             n_steps=cfg.env.training.n_steps,
-            total_batch_size=cfg.env.training.total_batch_size,
+            total_batch_size=total_batch_size,
             actor_factor_exe_networks=actor_factor_exe_networks,
             optimizer=optimizer,
             factor_iterations=cfg.env.network.factor_iterations,

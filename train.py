@@ -48,10 +48,11 @@ def train(cfg: omegaconf.DictConfig, log_compiles: bool = False) -> None:
     agent = setup_agent(cfg, env)
     stochastic_eval, greedy_eval = setup_evaluators(cfg, agent)
     training_state = setup_training_state(env, agent, init_key)
+    num_learner_steps_per_epoch = cfg.env.training.num_learner_steps_per_epoch
+    if cfg.agent == "factor_exe":
+        num_learner_steps_per_epoch *= cfg.env.training.every_k_schedule
     num_steps_per_epoch = (
-        cfg.env.training.n_steps
-        * cfg.env.training.total_batch_size
-        * cfg.env.training.num_learner_steps_per_epoch
+        cfg.env.training.n_steps * agent.total_batch_size * num_learner_steps_per_epoch
     )
     eval_timer = Timer(out_var_name="metrics")
     train_timer = Timer(
@@ -64,7 +65,7 @@ def train(cfg: omegaconf.DictConfig, log_compiles: bool = False) -> None:
             lambda training_state, _: agent.run_epoch(training_state),
             training_state,
             None,
-            cfg.env.training.num_learner_steps_per_epoch,
+            num_learner_steps_per_epoch,
         )
         metrics = jax.tree_util.tree_map(jnp.mean, metrics)
         return training_state, metrics
