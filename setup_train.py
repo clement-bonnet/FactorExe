@@ -125,6 +125,9 @@ def setup_agent(cfg: DictConfig, env: Environment) -> Agent:
             optimizer=optimizer,
             factor_iterations=cfg.env.network.factor_iterations,
             reinforce_loss_coeff=cfg.env.agent.reinforce_loss_coeff,
+            reinforce_estimators=cfg.env.agent.reinforce_estimators,
+            use_one_kl_loss_estimator=cfg.env.agent.use_one_kl_loss_estimator,
+            factors_entropy_coeff=cfg.env.agent.factors_entropy_coeff,
         )
     else:
         raise ValueError(

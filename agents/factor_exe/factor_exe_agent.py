@@ -47,6 +47,9 @@ class FactorExeAgent(Agent):
         optimizer: optax.GradientTransformation,
         factor_iterations: int,
         reinforce_loss_coeff: float,
+        reinforce_estimators: int,
+        use_one_kl_loss_estimator: bool,
+        factors_entropy_coeff: float,
     ) -> None:
         super().__init__(total_batch_size=total_batch_size)
         self.env = env
@@ -56,6 +59,9 @@ class FactorExeAgent(Agent):
         self.optimizer = optimizer
         self.factor_iterations = factor_iterations
         self.reinforce_loss_coeff = reinforce_loss_coeff
+        self.reinforce_estimators = reinforce_estimators
+        self.use_one_kl_loss_estimator = use_one_kl_loss_estimator
+        self.factors_entropy_coeff = factors_entropy_coeff
 
     def init_params(self, key: chex.PRNGKey) -> ParamsState:
         dummy_obs = jax.tree_util.tree_map(
@@ -109,24 +115,18 @@ class FactorExeAgent(Agent):
 
         acting_state, data = self.rollout(acting_state)  # [T, B, ...]
         key, entropy_key = jax.random.split(acting_state.key, 2)
-        # num_factors = 5
-        # keys = jax.random.split(
-        #     key, num_factors * self.n_steps * self.batch_size_per_device
-        # ).reshape(num_factors, self.n_steps, self.batch_size_per_device, -1)
-        keys = jax.random.split(key, self.n_steps * self.batch_size_per_device).reshape(
-            self.n_steps, self.batch_size_per_device, -1
+        keys = jax.random.split(
+            key, self.reinforce_estimators * self.n_steps * self.batch_size_per_device
+        ).reshape(
+            self.reinforce_estimators, self.n_steps, self.batch_size_per_device, -1
         )
 
-        # logits, factors, factors_logits = jax.vmap(
-        #     jax.vmap(
-        #         self.actor_factor_exe_networks.policy_network.apply,
-        #         in_axes=(None, 0, 0),
-        #     ),
-        #     in_axes=(None, None, 0),
-        # )(params, data.observation, keys)
         logits, factors, factors_logits = jax.vmap(
-            self.actor_factor_exe_networks.policy_network.apply,
-            in_axes=(None, 0, 0),
+            jax.vmap(
+                self.actor_factor_exe_networks.policy_network.apply,
+                in_axes=(None, 0, 0),
+            ),
+            in_axes=(None, None, 0),
         )(params, data.observation, keys)
 
         # Compute the entropy.
@@ -141,12 +141,17 @@ class FactorExeAgent(Agent):
         kl_losses = CategoricalDistribution(data.target_logits).kl_divergence(
             CategoricalDistribution(logits)
         )
-        kl_loss = jnp.mean(kl_losses)
+        if self.use_one_kl_loss_estimator:
+            kl_loss = jnp.mean(kl_losses[0])
+        else:
+            kl_loss = jnp.mean(kl_losses)
 
         # Compute the reinforce loss.
-        factors_log_prob = CategoricalDistribution(factors_logits).log_prob(factors)
-        # # TODO: remove bias by substracting mean of all but one.
-        # kl_losses = kl_losses - kl_losses.mean(axis=0, keepdims=True)
+        if self.reinforce_estimators > 1:
+            kl_losses = kl_losses - kl_losses.mean(axis=0, keepdims=True)
+        factors_log_prob = CategoricalDistribution(factors_logits).log_prob(
+            jax.lax.stop_gradient(factors)
+        )
 
         reinforce_loss = jnp.mean(
             jax.lax.stop_gradient(kl_losses)[..., None] * factors_log_prob,
@@ -159,6 +164,8 @@ class FactorExeAgent(Agent):
             }
         )
         factors_entropy = jnp.mean(factors_entropies)
+        if self.factors_entropy_coeff:
+            reinforce_loss += self.factors_entropy_coeff * factors_entropy
 
         total_loss = kl_loss + self.reinforce_loss_coeff * reinforce_loss
 
