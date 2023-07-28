@@ -165,9 +165,7 @@ class FactorExeAgent(Agent):
         # Log empirical factor entropy
         x = jnp.bincount(factors[0].reshape(-1), length=factors_logits.shape[-1])
         p = x / (len(factors[0].reshape(-1)))
-        factors_empirical_entropy = -jnp.sum(
-            jnp.where(p == 0, 0.0, p * jnp.log(p)), axis=-1
-        )
+        factors_empirical_entropy = -jnp.sum(jnp.where(p == 0, 0.0, p * jnp.log(p)))
 
         reinforce_losses = (
             jax.lax.stop_gradient(kl_losses)[..., None] * factors_log_prob
