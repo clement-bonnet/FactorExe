@@ -200,7 +200,7 @@ class FactorExeAgent(Agent):
         )
         factors_entropy = jnp.mean(factors_entropies)
         if self.factors_entropy_coeff:
-            reinforce_loss += self.factors_entropy_coeff * factors_entropy
+            reinforce_loss += self.factors_entropy_coeff * (-factors_entropy)
 
         total_loss = kl_loss + self.reinforce_loss_coeff * reinforce_loss
 
