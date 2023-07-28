@@ -50,6 +50,7 @@ class FactorExeAgent(Agent):
         reinforce_estimators: int,
         use_one_kl_loss_estimator: bool,
         factors_entropy_coeff: float,
+        reinforce_which: str,
     ) -> None:
         super().__init__(total_batch_size=total_batch_size)
         self.env = env
@@ -62,6 +63,7 @@ class FactorExeAgent(Agent):
         self.reinforce_estimators = reinforce_estimators
         self.use_one_kl_loss_estimator = use_one_kl_loss_estimator
         self.factors_entropy_coeff = factors_entropy_coeff
+        self.reinforce_which = reinforce_which
 
     def init_params(self, key: chex.PRNGKey) -> ParamsState:
         dummy_obs = jax.tree_util.tree_map(
@@ -153,10 +155,29 @@ class FactorExeAgent(Agent):
             jax.lax.stop_gradient(factors)
         )
 
-        reinforce_loss = jnp.mean(
-            jax.lax.stop_gradient(kl_losses)[..., None] * factors_log_prob,
+        reinforce_losses = (
+            jax.lax.stop_gradient(kl_losses)[..., None] * factors_log_prob
         )
+        # Sum over factors (i.e. "episodes")
+        reinforce_losses = jnp.sum(reinforce_losses, axis=-1)
         factors_entropies = CategoricalDistribution(factors_logits).entropy()
+        if self.reinforce_which == "all":
+            reinforce_loss = jnp.mean(reinforce_losses)
+        elif self.reinforce_which == "one":
+            reinforce_loss = jnp.mean(reinforce_losses[0])
+            factors_entropies = factors_entropies[0]
+        elif self.reinforce_which == "best":
+            best_indices = jnp.argmax(kl_losses, axis=0)
+            reinforce_losses = jnp.take_along_axis(
+                reinforce_losses, best_indices[None], axis=0
+            )
+            factors_entropies = jnp.take_along_axis(
+                factors_entropies, best_indices[None, ..., None], axis=0
+            )
+            reinforce_loss = jnp.mean(reinforce_losses)
+        else:
+            raise ValueError
+
         metrics.update(
             **{
                 f"factor_{i}_entropy": jnp.mean(factors_entropies[..., i])
