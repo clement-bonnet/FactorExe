@@ -48,9 +48,9 @@ class FactorExeAgent(Agent):
         factor_iterations: int,
         reinforce_loss_coeff: float,
         reinforce_estimators: int,
-        use_one_kl_loss_estimator: bool,
+        kl_loss_which_factor: str,
         factors_entropy_coeff: float,
-        reinforce_which: str,
+        reinforce_which_factor: str,
     ) -> None:
         super().__init__(total_batch_size=total_batch_size)
         self.env = env
@@ -61,9 +61,9 @@ class FactorExeAgent(Agent):
         self.factor_iterations = factor_iterations
         self.reinforce_loss_coeff = reinforce_loss_coeff
         self.reinforce_estimators = reinforce_estimators
-        self.use_one_kl_loss_estimator = use_one_kl_loss_estimator
+        self.kl_loss_which_factor = kl_loss_which_factor
         self.factors_entropy_coeff = factors_entropy_coeff
-        self.reinforce_which = reinforce_which
+        self.reinforce_which_factor = reinforce_which_factor
 
     def init_params(self, key: chex.PRNGKey) -> ParamsState:
         dummy_obs = jax.tree_util.tree_map(
@@ -106,7 +106,7 @@ class FactorExeAgent(Agent):
         )
         return training_state, metrics
 
-    def factor_exe_loss(
+    def factor_exe_loss(  # noqa: CCR001
         self,
         params: hk.Params,
         acting_state: ActingState,
@@ -143,10 +143,17 @@ class FactorExeAgent(Agent):
         kl_losses = CategoricalDistribution(data.target_logits).kl_divergence(
             CategoricalDistribution(logits)
         )
-        if self.use_one_kl_loss_estimator:
-            kl_loss = jnp.mean(kl_losses[0])
-        else:
+        if self.kl_loss_which_factor == "all":
             kl_loss = jnp.mean(kl_losses)
+        elif self.kl_loss_which_factor == "one":
+            kl_loss = jnp.mean(kl_losses[0])
+        elif self.kl_loss_which_factor == "best":
+            best_indices = jnp.argmax(kl_losses, axis=0)
+            kl_loss = jnp.mean(
+                jnp.take_along_axis(kl_losses, best_indices[None], axis=0)
+            )
+        else:
+            raise ValueError
 
         # Compute the reinforce loss.
         if self.reinforce_estimators > 1:
@@ -168,12 +175,12 @@ class FactorExeAgent(Agent):
         # Sum over factors (i.e. "episodes")
         reinforce_losses = jnp.sum(reinforce_losses, axis=-1)
         factors_entropies = CategoricalDistribution(factors_logits).entropy()
-        if self.reinforce_which == "all":
+        if self.reinforce_which_factor == "all":
             reinforce_loss = jnp.mean(reinforce_losses)
-        elif self.reinforce_which == "one":
+        elif self.reinforce_which_factor == "one":
             reinforce_loss = jnp.mean(reinforce_losses[0])
             factors_entropies = factors_entropies[0]
-        elif self.reinforce_which == "best":
+        elif self.reinforce_which_factor == "best":
             best_indices = jnp.argmax(kl_losses, axis=0)
             reinforce_losses = jnp.take_along_axis(
                 reinforce_losses, best_indices[None], axis=0
