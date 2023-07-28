@@ -19,7 +19,7 @@ training:
     num_learner_steps_per_epoch: 100
     n_steps: 20
     total_batch_size: 512
-    every_k_schedule: 1  # Only for FactorExeAgent, values: [1, +inf]
+    every_k_schedule: 8  # Only for FactorExeAgent, values: [1, +inf]
 
 evaluation:
     eval_total_batch_size: 8192
