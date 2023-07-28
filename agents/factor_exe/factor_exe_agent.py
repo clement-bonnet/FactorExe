@@ -148,7 +148,7 @@ class FactorExeAgent(Agent):
         elif self.kl_loss_which_factor == "one":
             kl_loss = jnp.mean(kl_losses[0])
         elif self.kl_loss_which_factor == "best":
-            best_indices = jnp.argmax(kl_losses, axis=0)
+            best_indices = jnp.argmin(kl_losses, axis=0)
             kl_loss = jnp.mean(
                 jnp.take_along_axis(kl_losses, best_indices[None], axis=0)
             )
@@ -181,7 +181,7 @@ class FactorExeAgent(Agent):
             reinforce_loss = jnp.mean(reinforce_losses[0])
             factors_entropies = factors_entropies[0]
         elif self.reinforce_which_factor == "best":
-            best_indices = jnp.argmax(kl_losses, axis=0)
+            best_indices = jnp.argmin(kl_losses, axis=0)
             reinforce_losses = jnp.take_along_axis(
                 reinforce_losses, best_indices[None], axis=0
             )
