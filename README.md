@@ -14,8 +14,12 @@
 
 ## Potential of Factorized Computation
 
-We could end up with very small LLMs matching or outperforming the largest ones (e.g. GPT-4), which would be incredibly sick and revolutionary. Also, it would be possible to query these factorized models for arbitrary compute budgets, giving rise to a controllable compute-performance trade-off. Technically, one could even imagine a manageable compute-safety trade-off by searching the computation tree for "safe" states given by a value.
+We could end up with very small LLMs matching or outperforming the largest ones (e.g. GPT-4), which would be incredibly sick and revolutionary. Also, it would be possible to query these factorized models for arbitrary compute budgets, giving rise to a controllable compute-performance trade-off. Technically, one could even imagine a manageable compute-safety trade-off by searching the computation tree for "safe" states given by a value (see LeCun's JEPA).
 
 ## Initial POC
 
-- Study the scaling laws of factorized computation. How does performance on a simple computational task evolve as a function of model size, chain of thought length, and training data? Can one recover similar performance by factorizing a model? Does one get higher sample efficiency assuming the chains are given? Does chain-of-thought factorization lead to linear, sublinear or superlinear scaling when increasing the chain length?
+1. Study the scaling laws of factorized computation.
+    1. How does performance on a simple computational task evolve as a function of model size, chain of thought length, and training data?
+    2. Can one recover similar performance by factorizing a model?
+    3. Does one get higher sample efficiency than 1-shot models assuming the chains are given?
+    4. Does chain-of-thought factorization lead to linear, sublinear or superlinear scaling when increasing the chain length?
