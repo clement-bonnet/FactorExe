@@ -25,3 +25,13 @@ On a tangent, two other applications could emerge. First, one could even imagine
     2. Can one recover similar performance by factorizing a model?
     3. Does one get higher sample efficiency than 1-shot models assuming the chains are given?
     4. Does chain-of-thought factorization lead to linear, sublinear or superlinear scaling when increasing the chain length?
+
+## Resources
+
+- [Teaching Arithmetic to Small Transformers, [Lee et al., 2023]](https://arxiv.org/abs/2307.03381)
+
+- [Universal Transformers, [Dehghani et al., 2019]](https://arxiv.org/abs/1807.03819)
+
+- [Adaptivity and Modularity for Efficient Generalization Over Task Complexity, [Abnar et al., 2023]](https://arxiv.org/abs/2310.08866)
+
+- [Adaptive Computation Time for Recurrent Neural Networks, [Graves, 2017]](https://arxiv.org/abs/1603.08983)
