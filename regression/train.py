@@ -1,11 +1,11 @@
-import jax.numpy as jnp
 import jax
+import jax.numpy as jnp
 
 jax.config.update("jax_platform_name", "cpu")
 import matplotlib.pyplot as plt
 
-from network import LinearNetwork, FactorNetwork
-import utils
+from regression import utils
+from regression.network import FactorNetwork, LinearNetwork
 
 
 def run(with_factor: bool, num_runs: int = 1, seed: int = 0):

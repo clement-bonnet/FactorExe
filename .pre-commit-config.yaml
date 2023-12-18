@@ -52,7 +52,7 @@ repos:
     hooks:
       - id: mypy
         name: "Static type checker"
-        entry: python -m mypy agents networks train.py setup_train.py training_types.py wrapper.py
+        entry: python -m mypy bin_pack regression
         language: system
         types: [ python ]
         pass_filenames: false
