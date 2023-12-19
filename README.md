@@ -45,3 +45,5 @@ On a tangent, two other applications could emerge. First, one could even imagine
 - [An investigation of model-free planning, [Guez et al., 2019]](https://arxiv.org/abs/1901.03559)
 
 - [Chain of Code: Reasoning with a Language Model-Augmented Code Emulator, [Li et al., 2023]](https://arxiv.org/abs/2312.04474)
+
+- [Think before you speak: Training Language Models With Pause Tokens, [Goyal, 2023]](https://arxiv.org/abs/2310.02226)
