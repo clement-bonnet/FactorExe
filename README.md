@@ -43,3 +43,5 @@ On a tangent, two other applications could emerge. First, one could even imagine
 - [PonderNet: Learning to Ponder, [Banino et al., 2021]](https://arxiv.org/abs/2107.05407)
 
 - [An investigation of model-free planning, [Guez et al., 2019]](https://arxiv.org/abs/1901.03559)
+
+- [Chain of Code: Reasoning with a Language Model-Augmented Code Emulator, [Li et al., 2023]](https://arxiv.org/abs/2312.04474)
