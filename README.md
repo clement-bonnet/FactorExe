@@ -47,3 +47,9 @@ On a tangent, two other applications could emerge. First, one could even imagine
 - [Chain of Code: Reasoning with a Language Model-Augmented Code Emulator, [Li et al., 2023]](https://arxiv.org/abs/2312.04474)
 
 - [Think before you speak: Training Language Models With Pause Tokens, [Goyal, 2023]](https://arxiv.org/abs/2310.02226)
+
+- [Implicit Chain of Thought Reasoning via Knowledge Distillation, [Deng et al., 2023]](https://arxiv.org/abs/2311.01460)
+
+- [Addressing Some Limitations of Transformers with Feedback Memory, [Fan et al., 2020]](https://arxiv.org/abs/2002.09402)
+
+- [CoTFormer: More Tokens With Attention Make Up For Less Depth, [Mohtashami et al., 2023]](https://arxiv.org/abs/2310.10845)
