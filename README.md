@@ -55,3 +55,9 @@ On a tangent, two other applications could emerge. First, one could even imagine
 - [CoTFormer: More Tokens With Attention Make Up For Less Depth, [Mohtashami et al., 2023]](https://arxiv.org/abs/2310.10845)
 
 - [Adaptive Computation with Elastic Input Sequence, [Xue et al., 2023]](https://arxiv.org/abs/2301.13195)
+
+- [The Devil is in the Detail: Simple Tricks Improve Systematic Generalization of Transformers, [Csordás et al., 2021]](https://arxiv.org/abs/2108.12284)
+
+- [Recurrent Independent Mechanisms, [Goyal et al., 2019]](https://arxiv.org/abs/1909.10893)
+
+- [Transferring Inductive Biases through Knowledge Distillation, [Abnar et al., 2020]](https://arxiv.org/abs/2006.00555)
