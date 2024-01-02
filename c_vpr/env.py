@@ -1,0 +1,2 @@
+class CVPR:
+    pass

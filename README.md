@@ -48,7 +48,12 @@ On a tangent, two other applications could emerge. First, one could even imagine
 - [Implicit Chain of Thought Reasoning via Knowledge Distillation, [Deng et al., 2023]](https://arxiv.org/abs/2311.01460)
 - [Addressing Some Limitations of Transformers with Feedback Memory, [Fan et al., 2020]](https://arxiv.org/abs/2002.09402)
 - [CoTFormer: More Tokens With Attention Make Up For Less Depth, [Mohtashami et al., 2023]](https://arxiv.org/abs/2310.10845)
-- [Adaptive Computation with Elastic Input Sequence, [Xue et al., 2023]](https://arxiv.org/abs/2301.13195)
+- [Adaptive Computation with Elastic Input Sequence, [Xue et al., 2023]](https://arxiv.org/abs/2301.13195): generalization with respect to the computation sequence length.
 - [The Devil is in the Detail: Simple Tricks Improve Systematic Generalization of Transformers, [Csordás et al., 2021]](https://arxiv.org/abs/2108.12284)
 - [Recurrent Independent Mechanisms, [Goyal et al., 2019]](https://arxiv.org/abs/1909.10893)
 - [Transferring Inductive Biases through Knowledge Distillation, [Abnar et al., 2020]](https://arxiv.org/abs/2006.00555)
+- [Pointer Value Retrieval: A new benchmark for understanding the limits of neural network generalization, [Zhang et al., 2021]](https://arxiv.org/abs/2107.12580): generalization, neural network reasonning, indirection.
+- [Explaining grokking through circuit efficiency, [Varma et al., 2023]](https://arxiv.org/abs/2309.02390): on generalization versus memorization.
+- [Thinking Like Transformers, [Weiss et al., 2021]](https://arxiv.org/abs/2106.06981): RASP language and computation model behind the transformer.
+- [What Algorithms can Transformers Learn? A Study in Length Generalization, [Zhou et al., 2023]](https://arxiv.org/abs/2310.16028): on length generalization.
+- [The No Free Lunch Theorem, Kolmogorov Complexity, and the Role of Inductive Biases in Machine Learning, [Goldblum et al., 2023]](https://arxiv.org/abs/2304.05366): on no-free lunch theorem
