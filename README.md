@@ -26,38 +26,29 @@ On a tangent, two other applications could emerge. First, one could even imagine
     3. Does one get higher sample efficiency than 1-shot models assuming the chains are given?
     4. Does chain-of-thought factorization lead to linear, sublinear or superlinear scaling when increasing the chain length?
 
+## Code structure
+
+- `bin_pack/`: old BinPack code, may be reused later.
+- `c_vpr/`: code for the C-VPR task with `M` hops.
+- `multiplication`: code for the `N*N` multiplication task.
+- `regression/`: old quasi-linear regression code, maybe reused later.
+
 ## Resources
 
 - [Teaching Arithmetic to Small Transformers, [Lee et al., 2023]](https://arxiv.org/abs/2307.03381)
-
 - [Universal Transformers, [Dehghani et al., 2019]](https://arxiv.org/abs/1807.03819)
-
 - [Adaptivity and Modularity for Efficient Generalization Over Task Complexity, [Abnar et al., 2023]](https://arxiv.org/abs/2310.08866)
-
 - [Adaptive Computation Time for Recurrent Neural Networks, [Graves, 2017]](https://arxiv.org/abs/1603.08983)
-
 - [Modular Deep Learning, [Pfeiffer et al., 2023]](https://arxiv.org/abs/2302.11529)
-
 - [Adaptive Computation Time for Recurrent Neural Networks, [Graves, 2016]](https://arxiv.org/abs/1603.08983)
-
 - [PonderNet: Learning to Ponder, [Banino et al., 2021]](https://arxiv.org/abs/2107.05407)
-
 - [An investigation of model-free planning, [Guez et al., 2019]](https://arxiv.org/abs/1901.03559)
-
 - [Chain of Code: Reasoning with a Language Model-Augmented Code Emulator, [Li et al., 2023]](https://arxiv.org/abs/2312.04474)
-
 - [Think before you speak: Training Language Models With Pause Tokens, [Goyal, 2023]](https://arxiv.org/abs/2310.02226)
-
 - [Implicit Chain of Thought Reasoning via Knowledge Distillation, [Deng et al., 2023]](https://arxiv.org/abs/2311.01460)
-
 - [Addressing Some Limitations of Transformers with Feedback Memory, [Fan et al., 2020]](https://arxiv.org/abs/2002.09402)
-
 - [CoTFormer: More Tokens With Attention Make Up For Less Depth, [Mohtashami et al., 2023]](https://arxiv.org/abs/2310.10845)
-
 - [Adaptive Computation with Elastic Input Sequence, [Xue et al., 2023]](https://arxiv.org/abs/2301.13195)
-
 - [The Devil is in the Detail: Simple Tricks Improve Systematic Generalization of Transformers, [Csordás et al., 2021]](https://arxiv.org/abs/2108.12284)
-
 - [Recurrent Independent Mechanisms, [Goyal et al., 2019]](https://arxiv.org/abs/1909.10893)
-
 - [Transferring Inductive Biases through Knowledge Distillation, [Abnar et al., 2020]](https://arxiv.org/abs/2006.00555)
