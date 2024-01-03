@@ -32,7 +32,6 @@ from jumanji.environments.packing.bin_pack.types import (
 from jumanji.training.agents.base import Agent
 from jumanji.training.networks.parametric_distribution import CategoricalDistribution
 from jumanji.training.types import ActingState, TrainingState
-
 from networks.actor_factor_exe import ActorFactorExeNetworks
 from training_types import ParamsState, Transition
 

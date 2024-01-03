@@ -18,6 +18,9 @@ import chex
 import jax
 import jax.numpy as jnp
 import optax
+from agents.factor_exe import FactorExeAgent
+from agents.pd import PDAgent
+from evaluator import Evaluator
 from jumanji.env import Environment
 from jumanji.environments import BinPack
 from jumanji.environments.packing.bin_pack import generator as bin_pack_generator
@@ -26,11 +29,6 @@ from jumanji.training.agents.random import RandomAgent
 from jumanji.training.loggers import Logger, NoOpLogger, TensorboardLogger
 from jumanji.training.networks.protocols import RandomPolicy
 from jumanji.training.types import ActingState, TrainingState
-from omegaconf import DictConfig
-
-from agents.factor_exe import FactorExeAgent
-from agents.pd import PDAgent
-from evaluator import Evaluator
 from loggers import NeptuneLogger, TerminalLogger
 from networks import (
     make_actor_factor_exe_networks_bin_pack,
@@ -39,6 +37,7 @@ from networks import (
 )
 from networks.actor import ActorNetworks
 from networks.actor_factor_exe import ActorFactorExeNetworks
+from omegaconf import DictConfig
 from wrapper import BinPackSolutionWrapper, VmapAutoResetWrapperBinPackSolution
 
 

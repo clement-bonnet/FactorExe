@@ -18,15 +18,14 @@ from typing import Any, Dict, Optional, Tuple
 import chex
 import haiku as hk
 import jax
+from agents.factor_exe import FactorExeAgent
+from agents.pd import PDAgent
 from jax import numpy as jnp
 from jumanji.env import Environment
 from jumanji.training.agents.a2c.a2c_agent import A2CAgent
 from jumanji.training.agents.base import Agent
 from jumanji.training.agents.random import RandomAgent
 from jumanji.training.types import ActingState, ParamsState
-
-from agents.factor_exe import FactorExeAgent
-from agents.pd import PDAgent
 
 
 class Evaluator:

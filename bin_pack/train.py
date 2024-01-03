@@ -24,8 +24,6 @@ from jumanji.training import utils
 from jumanji.training.agents.random import RandomAgent
 from jumanji.training.timer import Timer
 from jumanji.training.types import TrainingState
-from tqdm.auto import trange
-
 from loggers import TerminalLogger
 from setup_train import (
     setup_agent,
@@ -34,6 +32,7 @@ from setup_train import (
     setup_logger,
     setup_training_state,
 )
+from tqdm.auto import trange
 
 
 @hydra.main(config_path="configs", config_name="config.yaml")
