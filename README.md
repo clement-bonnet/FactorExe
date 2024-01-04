@@ -59,3 +59,6 @@ On a tangent, two other applications could emerge. First, one could even imagine
 - [The No Free Lunch Theorem, Kolmogorov Complexity, and the Role of Inductive Biases in Machine Learning, [Goldblum et al., 2023]](https://arxiv.org/abs/2304.05366): on no-free lunch theorem.
 - [Lessons on Parameter Sharing across Layers in Transformers, [Takase & Kiyono, 2021]](https://arxiv.org/abs/2104.06022): superior performance when you stack layers multiple times (sharing params).
 - [Understanding Parameter Sharing in Transformers, [Lin et al., 2023]](https://arxiv.org/abs/2306.09380)
+- [Sparse Universal Transformer, [Tan et al., 2023]](https://arxiv.org/abs/2310.07096)
+- [Improving the Neural GPU Architecture for Algorithm Learning, [Freivalds & Liepins, 2017]](https://arxiv.org/abs/1702.08727)
+- [Neural GPUs Learn Algorithms, [Kaiser & Sutskever, 2015]](https://arxiv.org/abs/1511.08228)
