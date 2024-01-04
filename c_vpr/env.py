@@ -8,18 +8,43 @@ class C_VPR:  # noqa: N801
     over task complexity [Abnar et al., 2023].
     """
 
-    def __init__(self, K: int = 100, L: int = 100) -> None:  # noqa: N803
+    def __init__(self, input_length: int = 100) -> None:  # noqa: N803
         """Args:
-        K: int, max input value, the input being in the range [0, K-1].
-        L: int, length of the input sequence.
+        input_length: int, length of the input sequence.
         """
-        self.max_input_value = K
-        self.input_length = L
+        self.input_length = input_length
 
-    def sample(self, key: chex.PRNGKey):
+    def sample(self, key: chex.PRNGKey) -> chex.Array:
         example = jax.random.randint(
-            key, shape=(self.input_length,), minval=0, maxval=self.max_input_value
+            key, shape=(self.input_length,), minval=0, maxval=self.input_length
         )
+        return example
+
+    def sample_n_hops(self, num_hops: int, key: chex.PRNGKey) -> chex.Array:
+        """Uniformly samples a sequence with `num_hops` in it."""
+        pointers_key, example_key, last_index_key = jax.random.split(key, 3)
+        pointers = jax.random.choice(
+            pointers_key, jnp.arange(1, self.input_length), (num_hops,), replace=False
+        )
+        pointers = jnp.sort(pointers)
+        example = jax.random.randint(
+            example_key,
+            shape=(self.input_length,),
+            minval=0,
+            maxval=self.input_length,
+        )
+
+        # Write the pointers in the sequence.
+        indices = jnp.concatenate([jnp.zeros((1,), int), pointers[:-1]])
+        example = example.at[indices].set(pointers)
+
+        # Resample the last index to make sure it is less or equal than the highest pointer.
+        last_index = pointers[-1]
+        last_value = jax.random.randint(
+            last_index_key, shape=(), minval=0, maxval=last_index + 1
+        )
+        example = example.at[last_index].set(last_value)
+
         return example
 
     def get_num_hops(self, example: chex.Array) -> int:
@@ -33,13 +58,10 @@ class C_VPR:  # noqa: N801
             new_pointer = example[pointer]
             return num_hops, pointer, new_pointer
 
+        # Follow the increasing sequence of pointers while the new pointer is greater than the current one.
         num_hops, *_ = jax.lax.while_loop(
             cond_fun=lambda c: c[2] > c[1],
             body_fun=body_fn,
             init_val=(num_hops, pointer, new_pointer),
         )
-        # while new_pointer > pointer:
-        #     num_hops += 1
-        #     pointer = new_pointer
-        #     new_pointer = example[pointer]
         return num_hops
