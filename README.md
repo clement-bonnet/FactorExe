@@ -56,4 +56,6 @@ On a tangent, two other applications could emerge. First, one could even imagine
 - [Explaining grokking through circuit efficiency, [Varma et al., 2023]](https://arxiv.org/abs/2309.02390): on generalization versus memorization.
 - [Thinking Like Transformers, [Weiss et al., 2021]](https://arxiv.org/abs/2106.06981): RASP language and computation model behind the transformer.
 - [What Algorithms can Transformers Learn? A Study in Length Generalization, [Zhou et al., 2023]](https://arxiv.org/abs/2310.16028): on length generalization.
-- [The No Free Lunch Theorem, Kolmogorov Complexity, and the Role of Inductive Biases in Machine Learning, [Goldblum et al., 2023]](https://arxiv.org/abs/2304.05366): on no-free lunch theorem
+- [The No Free Lunch Theorem, Kolmogorov Complexity, and the Role of Inductive Biases in Machine Learning, [Goldblum et al., 2023]](https://arxiv.org/abs/2304.05366): on no-free lunch theorem.
+- [Lessons on Parameter Sharing across Layers in Transformers, [Takase & Kiyono, 2021]](https://arxiv.org/abs/2104.06022): superior performance when you stack layers multiple times (sharing params).
+- [Understanding Parameter Sharing in Transformers, [Lin et al., 2023]](https://arxiv.org/abs/2306.09380)
