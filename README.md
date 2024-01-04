@@ -2,6 +2,13 @@
 
 > If factorization of computation is possible, very small models equipped with a search algorithm will perform arbitrarily complex computations.
 
+## Code structure
+
+- `bin_pack/`: old BinPack code, may be reused later.
+- `c_vpr/`: code for the C-VPR task with `M` hops.
+- `multiplication`: code for the `N*N` multiplication task.
+- `regression/`: old quasi-linear regression code, maybe reused later.
+
 ## Questions
 
 - Should intermediate computations be discretely sampled or continuous (e.g. full embedding)? If the former, one will need RL to train the system. If the latter, one can backpropagate through the chain of thought which looks more like an RNN (with attention layers if one uses a small transformer as the factorized model). It is equivalent to a full transformer with complete weight sharing between layers.
@@ -25,13 +32,6 @@ On a tangent, two other applications could emerge. First, one could even imagine
     2. Can one recover similar performance by factorizing a model?
     3. Does one get higher sample efficiency than 1-shot models assuming the chains are given?
     4. Does chain-of-thought factorization lead to linear, sublinear or superlinear scaling when increasing the chain length?
-
-## Code structure
-
-- `bin_pack/`: old BinPack code, may be reused later.
-- `c_vpr/`: code for the C-VPR task with `M` hops.
-- `multiplication`: code for the `N*N` multiplication task.
-- `regression/`: old quasi-linear regression code, maybe reused later.
 
 ## Resources
 
