@@ -20,7 +20,9 @@ class C_VPR:  # noqa: N801
         )
         return example
 
-    def sample_n_hops(self, num_hops: int, key: chex.PRNGKey) -> chex.Array:
+    def sample_n_hops(
+        self, num_hops: int, key: chex.PRNGKey, return_target: bool = False
+    ) -> chex.Array:
         """Uniformly samples a sequence with `num_hops` in it."""
         pointers_key, example_key, last_index_key = jax.random.split(key, 3)
         pointers = jax.random.choice(
@@ -40,12 +42,15 @@ class C_VPR:  # noqa: N801
 
         # Resample the last index to make sure it is less or equal than the highest pointer.
         last_index = pointers[-1]
-        last_value = jax.random.randint(
+        target = jax.random.randint(
             last_index_key, shape=(), minval=0, maxval=last_index + 1
         )
-        example = example.at[last_index].set(last_value)
+        example = example.at[last_index].set(target)
 
-        return example
+        if return_target:
+            return example, target
+        else:
+            return example
 
     def get_num_hops(self, example: chex.Array) -> int:
         num_hops, pointer = jnp.asarray(0, int), 0
@@ -58,7 +63,8 @@ class C_VPR:  # noqa: N801
             new_pointer = example[pointer]
             return num_hops, pointer, new_pointer
 
-        # Follow the increasing sequence of pointers while the new pointer is greater than the current one.
+        # Follow the increasing sequence of pointers while the new pointer is greater than the
+        # current one.
         num_hops, *_ = jax.lax.while_loop(
             cond_fun=lambda c: c[2] > c[1],
             body_fun=body_fn,
