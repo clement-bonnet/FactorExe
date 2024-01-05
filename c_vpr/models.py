@@ -227,4 +227,7 @@ if __name__ == "__main__":
     params = model.init(key, inputs=example, deterministic=True)
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(params))
     print("Number of parameters: {:,}".format(num_params))
-    model.apply(params, inputs=example, deterministic=False, rngs={"dropout": key})
+    apply_fn = jax.jit(model.apply, static_argnames="deterministic")
+    output = apply_fn(
+        params, inputs=example, deterministic=False, rngs={"dropout": key}
+    )
