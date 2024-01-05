@@ -19,6 +19,7 @@ class TransformerConfig:
     emb_dim: int
     num_heads: int
     num_layers: int
+    num_repeat_model: int
     mlp_dim: int
     max_len: int
     dropout_rate: float
@@ -192,8 +193,13 @@ class Transformer(nn.Module):
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
         x = AddPositionEmbs(config)(x)
 
-        for _ in range(config.num_layers):
-            x = TransformerLayer(config)(x, deterministic=deterministic)
+        transformer_layers = [
+            TransformerLayer(config) for _ in range(config.num_layers)
+        ]
+
+        for _ in range(config.num_repeat_model):
+            for layer in transformer_layers:
+                x = layer(x, deterministic=deterministic)
 
         x = nn.LayerNorm(dtype=config.dtype)(x)
         x = x.mean(axis=1)
@@ -209,6 +215,7 @@ if __name__ == "__main__":
         emb_dim=384,
         num_heads=6,
         num_layers=6,
+        num_repeat_model=1,
         mlp_dim=1536,
         max_len=seq_length,
         dropout_rate=0.1,
