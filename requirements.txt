@@ -1,2 +1,6 @@
+flax
+jax == 0.4.11 # for Apple M2
+jax-metal==0.0.3 # for Apple M2
+jaxlib == 0.4.10 # for Apple M2
 jumanji[dev,train] >= 0.3.1
-trax
+ml-dtypes==0.2.0 # for Apple M2
