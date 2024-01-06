@@ -170,6 +170,11 @@ class Transformer(nn.Module):
 
     config: TransformerConfig
 
+    def setup(self):
+        self.transformer_layers = [
+            TransformerLayer(self.config) for _ in range(self.config.num_layers)
+        ]
+
     @nn.compact
     def __call__(self, *, inputs, deterministic: bool):
         """Applies Transformer model on the inputs.
@@ -193,12 +198,8 @@ class Transformer(nn.Module):
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
         x = AddPositionEmbs(config)(x)
 
-        transformer_layers = [
-            TransformerLayer(config) for _ in range(config.num_layers)
-        ]
-
         for _ in range(config.num_repeat_model):
-            for layer in transformer_layers:
+            for layer in self.transformer_layers:
                 x = layer(x, deterministic=deterministic)
 
         x = nn.LayerNorm(dtype=config.dtype)(x)
