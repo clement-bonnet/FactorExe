@@ -152,7 +152,6 @@ def run_exp(
 
     wandb.init(
         project="FactorExe",
-        entity="clementbonnet",
         config=config.__dict__,
         name=run_name,
     )
