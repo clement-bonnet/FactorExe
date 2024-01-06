@@ -156,7 +156,7 @@ def run_exp(
         name=run_name,
     )
     learning_rate = 5e-4
-    num_iterations = 400_000
+    num_iterations = 200_000
     batch_size = 256
     log_every = 100
     wandb.config.num_hops = num_hops
