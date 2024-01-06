@@ -91,6 +91,8 @@ class Trainer:
             key, epoch_key = jax.random.split(key)
             state, metrics = jit_train_epoch(state, epoch_key)
             wandb.log(metrics, step=epoch * log_every)
+            if metrics["accuracy"] > 0.95:
+                break
         return state
 
     def cross_entropy_loss(self, logits: chex.Array, labels: chex.Array) -> float:
