@@ -22,13 +22,19 @@ class Trainer:
     def __init__(
         self,
         c_vpr: C_VPR,
-        num_hops: int | list[int],
+        train_num_hops: int | list[int],
+        eval_num_hops: int | list[int],
         seq_length: int,
         batch_size: int,
         eval_size: int,
     ) -> None:
         self.c_vpr = c_vpr
-        self.num_hops = [num_hops] if isinstance(num_hops, int) else num_hops
+        self.train_num_hops = (
+            [train_num_hops] if isinstance(train_num_hops, int) else train_num_hops
+        )
+        self.eval_num_hops = (
+            [eval_num_hops] if isinstance(eval_num_hops, int) else eval_num_hops
+        )
         self.seq_length = seq_length
         self.batch_size = batch_size
         self.eval_size = eval_size
@@ -55,10 +61,10 @@ class Trainer:
         num_hops_key, sample_key, dropout_key = jax.random.split(key, 3)
 
         def sample_n_hops(key, num_hops_index):
-            if len(self.num_hops) == 1:
+            if len(self.train_num_hops) == 1:
                 del num_hops_index
                 return self.c_vpr.sample_n_hops(
-                    key, self.num_hops[0], return_target=True
+                    key, self.train_num_hops[0], return_target=True
                 )
             else:
                 return jax.lax.switch(
@@ -69,14 +75,14 @@ class Trainer:
                             num_hops=num_hops,
                             return_target=True,
                         )
-                        for num_hops in self.num_hops
+                        for num_hops in self.train_num_hops
                     ],
                     key,
                 )
 
         num_hops_indices = jax.random.choice(
             num_hops_key,
-            jnp.arange(len(self.num_hops)),
+            jnp.arange(len(self.train_num_hops)),
             (self.batch_size,),
             replace=True,
         )
@@ -110,8 +116,8 @@ class Trainer:
 
     def eval(self, state: TrainState, key: chex.PRNGKey) -> dict:
         metrics = {}
-        sample_keys = jax.random.split(key, len(self.num_hops))
-        for num_hops, sample_key in zip(self.num_hops, sample_keys):
+        sample_keys = jax.random.split(key, len(self.eval_num_hops))
+        for num_hops, sample_key in zip(self.eval_num_hops, sample_keys):
             keys = jax.random.split(sample_key, self.eval_size)
             examples, labels = jax.vmap(
                 functools.partial(
@@ -125,7 +131,7 @@ class Trainer:
             )
             metrics.update(
                 {
-                    f"{k}_num_hops:{num_hops}": v
+                    f"eval/num_hops:{num_hops}/{k}": v
                     for k, v in self.compute_metrics(logits, labels).items()
                 }
             )
@@ -185,10 +191,16 @@ class Trainer:
 
 
 def run_exp(
-    num_hops: int | list[int] = 3,
+    train_num_hops: int | list[int] = 3,
+    eval_num_hops: int | list[int] = 3,
     seq_length: int = 10,
     num_layers: int = 2,
     num_repeat_model: int = 1,
+    learning_rate: float = 5e-4,
+    num_iterations: int = 200_000,
+    batch_size: int = 256,
+    eval_size: int = 500,
+    log_every: int = 100,
     run_name: Optional[str] = None,
 ):
     config = TransformerConfig(
@@ -211,16 +223,16 @@ def run_exp(
         config=config.__dict__,
         name=run_name,
     )
-    learning_rate = 5e-4
-    num_iterations = 200_000
-    batch_size = 256
-    log_every = 100
-    wandb.config.num_hops = num_hops
+    wandb.config.train_num_hops = train_num_hops
+    wandb.config.eval_num_hops = eval_num_hops
     wandb.config.learning_rate = learning_rate
     wandb.config.num_iterations = num_iterations
     wandb.config.batch_size = batch_size
+    wandb.config.eval_size = eval_size
 
-    trainer = Trainer(c_vpr, num_hops, seq_length, batch_size, eval_size=500)
+    trainer = Trainer(
+        c_vpr, train_num_hops, eval_num_hops, seq_length, batch_size, eval_size
+    )
     key = jax.random.PRNGKey(0)
     state = trainer.init_train_state(model, key, learning_rate)
     trainer.train(state, key, num_iterations, log_every)
@@ -229,7 +241,8 @@ def run_exp(
 
 if __name__ == "__main__":
     run_exp(
-        num_hops=[1, 2, 3, 4],
+        train_num_hops=[1, 2, 3, 4],
+        eval_num_hops=[1, 2, 3, 4],
         seq_length=100,
         num_layers=12,
         run_name="num_hops: [1,2,3,4], seq_length: 100, num_layers: 12",
