@@ -20,12 +20,18 @@ logging.getLogger().setLevel(logging.INFO)
 
 class Trainer:
     def __init__(
-        self, c_vpr: C_VPR, num_hops: int | list[int], seq_length: int, batch_size: int
+        self,
+        c_vpr: C_VPR,
+        num_hops: int | list[int],
+        seq_length: int,
+        batch_size: int,
+        eval_size: int,
     ) -> None:
         self.c_vpr = c_vpr
         self.num_hops = [num_hops] if isinstance(num_hops, int) else num_hops
         self.seq_length = seq_length
         self.batch_size = batch_size
+        self.eval_size = eval_size
 
     def init_train_state(
         self,
@@ -102,6 +108,30 @@ class Trainer:
         metrics = jax.tree_util.tree_map(jnp.mean, metrics)
         return state, metrics
 
+    def eval(self, state: TrainState, key: chex.PRNGKey) -> dict:
+        metrics = {}
+        sample_keys = jax.random.split(key, len(self.num_hops))
+        for num_hops, sample_key in zip(self.num_hops, sample_keys):
+            keys = jax.random.split(sample_key, self.eval_size)
+            examples, labels = jax.vmap(
+                functools.partial(
+                    self.c_vpr.sample_n_hops, num_hops=num_hops, return_target=True
+                )
+            )(keys)
+            logits = state.apply_fn(
+                {"params": state.params},
+                inputs=examples,
+                deterministic=True,
+            )
+            metrics.update(
+                {
+                    f"{k}_num_hops:{num_hops}": v
+                    for k, v in self.compute_metrics(logits, labels).items()
+                }
+            )
+
+        return metrics
+
     def train(
         self,
         state: TrainState,
@@ -112,13 +142,13 @@ class Trainer:
         jit_train_epoch = jax.jit(
             functools.partial(self.train_epoch, num_steps=log_every)
         )
+        jit_eval = jax.jit(self.eval)
         num_epochs = num_iterations // log_every
         for epoch in trange(1, num_epochs + 1):
-            key, epoch_key = jax.random.split(key)
+            key, epoch_key, eval_key = jax.random.split(key, 3)
             state, metrics = jit_train_epoch(state, epoch_key)
+            metrics.update(jit_eval(state, eval_key))
             wandb.log(metrics, step=epoch * log_every)
-            if metrics["accuracy"] > 0.95:
-                break
         return state
 
     def cross_entropy_loss(self, logits: chex.Array, labels: chex.Array) -> float:
@@ -199,50 +229,8 @@ def run_exp(
 
 if __name__ == "__main__":
     run_exp(
-        num_hops=1,
+        num_hops=[1, 2, 3, 4],
         seq_length=100,
-        num_layers=6,
-        run_name="num_hops: 1, seq_length: 100, num_layers: 6",
-    )
-    run_exp(
-        num_hops=[1, 2, 3],
-        seq_length=100,
-        num_layers=6,
-        run_name="num_hops: 2, seq_length: 100, num_layers: 6",
-    )
-    run_exp(
-        num_hops=3,
-        seq_length=100,
-        num_layers=6,
-        run_name="num_hops: 3, seq_length: 100, num_layers: 6",
-    )
-    run_exp(
-        num_hops=4,
-        seq_length=100,
-        num_layers=6,
-        run_name="num_hops: 4, seq_length: 100, num_layers: 6",
-    )
-    run_exp(
-        num_hops=5,
-        seq_length=100,
-        num_layers=6,
-        run_name="num_hops: 5, seq_length: 100, num_layers: 6",
-    )
-    run_exp(
-        num_hops=6,
-        seq_length=100,
-        num_layers=6,
-        run_name="num_hops: 6, seq_length: 100, num_layers: 6",
-    )
-    run_exp(
-        num_hops=10,
-        seq_length=100,
-        num_layers=6,
-        run_name="num_hops: 10, seq_length: 100, num_layers: 6",
-    )
-    run_exp(
-        num_hops=20,
-        seq_length=100,
-        num_layers=6,
-        run_name="num_hops: 20, seq_length: 100, num_layers: 6",
+        num_layers=12,
+        run_name="num_hops: [1,2,3,4], seq_length: 100, num_layers: 12",
     )
