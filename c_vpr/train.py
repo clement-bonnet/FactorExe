@@ -220,7 +220,7 @@ def run_exp(
     wandb.config.num_iterations = num_iterations
     wandb.config.batch_size = batch_size
 
-    trainer = Trainer(c_vpr, num_hops, seq_length, batch_size)
+    trainer = Trainer(c_vpr, num_hops, seq_length, batch_size, eval_size=500)
     key = jax.random.PRNGKey(0)
     state = trainer.init_train_state(model, key, learning_rate)
     trainer.train(state, key, num_iterations, log_every)
