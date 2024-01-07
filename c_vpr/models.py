@@ -24,7 +24,7 @@ class TransformerConfig:
     max_len: int
     dropout_rate: float
     attention_dropout_rate: float
-    posemb_init: Optional[Callable] = None  # None: fixed, otherwise learned embeddings.
+    learn_posemb: bool = False
     dtype: Any = jnp.float32
 
 
@@ -68,9 +68,8 @@ class AddPositionEmbs(nn.Module):
     def __call__(self, inputs: chex.Array) -> chex.Array:
         """Applies AddPositionEmbs module.
 
-        By default this layer uses a fixed sinusoidal embedding table. If a
-        learned position embedding is desired, pass an initializer to
-        posemb_init in the configuration.
+        By default this layer uses a fixed sinusoidal embedding table if
+        learn_posemb is False.
 
         Args:
           inputs: input data.
@@ -85,14 +84,14 @@ class AddPositionEmbs(nn.Module):
         )
         length = inputs.shape[1]
         pos_emb_shape = (1, config.max_len, inputs.shape[-1])
-        if config.posemb_init is None:
+        if config.learn_posemb:
+            pos_embedding = self.param(
+                "pos_embedding", sinusoidal_init(max_len=config.max_len), pos_emb_shape
+            )
+        else:
             # Use a fixed (non-learned) sinusoidal position embedding.
             pos_embedding = sinusoidal_init(max_len=config.max_len)(
                 None, pos_emb_shape, None
-            )
-        else:
-            pos_embedding = self.param(
-                "pos_embedding", config.posemb_init, pos_emb_shape
             )
         pe = pos_embedding[:, :length, :]
         return inputs + pe

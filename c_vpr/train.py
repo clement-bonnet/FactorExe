@@ -201,6 +201,7 @@ def run_exp(
     batch_size: int = 256,
     eval_size: int = 500,
     log_every: int = 100,
+    learn_posemb: bool = True,
     run_name: Optional[str] = None,
 ):
     config = TransformerConfig(
@@ -214,6 +215,7 @@ def run_exp(
         max_len=seq_length,
         dropout_rate=0.1,
         attention_dropout_rate=0.1,
+        learn_posemb=learn_posemb,
     )
     model = Transformer(config)
     c_vpr = C_VPR(seq_length)
@@ -241,9 +243,9 @@ def run_exp(
 
 if __name__ == "__main__":
     run_exp(
-        train_num_hops=[1, 2, 3, 4],
-        eval_num_hops=[1, 2, 3, 4],
+        train_num_hops=[1, 2],
+        eval_num_hops=[1, 2],
         seq_length=100,
-        num_layers=12,
-        run_name="num_hops: [1,2,3,4], seq_length: 100, num_layers: 12",
+        num_layers=6,
+        run_name="num_hops: [1,2], seq_length: 100, num_layers: 6, learned_embeddings",
     )
