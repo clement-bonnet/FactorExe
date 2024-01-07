@@ -20,10 +20,10 @@ logging.getLogger().setLevel(logging.INFO)
 
 class Trainer:
     def __init__(
-        self, c_vpr: C_VPR, num_hops: int, seq_length: int, batch_size: int
+        self, c_vpr: C_VPR, num_hops: int | list[int], seq_length: int, batch_size: int
     ) -> None:
         self.c_vpr = c_vpr
-        self.num_hops = num_hops
+        self.num_hops = [num_hops] if isinstance(num_hops, int) else num_hops
         self.seq_length = seq_length
         self.batch_size = batch_size
 
@@ -46,19 +46,45 @@ class Trainer:
     def train_step(
         self, state: TrainState, key: chex.PRNGKey
     ) -> tuple[TrainState, dict]:
-        example_key, dropout_key = jax.random.split(key)
-        example_keys = jax.random.split(example_key, self.batch_size)
-        return_target = True
-        examples, labels = jax.vmap(self.c_vpr.sample_n_hops, in_axes=(0, None, None))(
-            example_keys, self.num_hops, return_target
-        )
+        num_hops_key, sample_key, dropout_key = jax.random.split(key, 3)
 
-        def loss_fn(params: dict, key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
+        def sample_n_hops(key, num_hops_index):
+            if len(self.num_hops) == 1:
+                del num_hops_index
+                return self.c_vpr.sample_n_hops(
+                    key, self.num_hops[0], return_target=True
+                )
+            else:
+                return jax.lax.switch(
+                    num_hops_index,
+                    [
+                        functools.partial(
+                            self.c_vpr.sample_n_hops,
+                            num_hops=num_hops,
+                            return_target=True,
+                        )
+                        for num_hops in self.num_hops
+                    ],
+                    key,
+                )
+
+        num_hops_indices = jax.random.choice(
+            num_hops_key,
+            jnp.arange(len(self.num_hops)),
+            (self.batch_size,),
+            replace=True,
+        )
+        sample_keys = jax.random.split(sample_key, self.batch_size)
+        examples, labels = jax.vmap(sample_n_hops)(sample_keys, num_hops_indices)
+
+        def loss_fn(
+            params: dict, dropout_key: chex.PRNGKey
+        ) -> tuple[TrainState, chex.Array]:
             logits = state.apply_fn(
                 {"params": params},
                 inputs=examples,
                 deterministic=False,
-                rngs={"dropout": key},
+                rngs={"dropout": dropout_key},
             )
             loss = self.cross_entropy_loss(logits=logits, labels=labels)
             return loss, logits
@@ -129,7 +155,7 @@ class Trainer:
 
 
 def run_exp(
-    num_hops: int = 5,
+    num_hops: int | list[int] = 3,
     seq_length: int = 10,
     num_layers: int = 2,
     num_repeat_model: int = 1,
@@ -179,7 +205,7 @@ if __name__ == "__main__":
         run_name="num_hops: 1, seq_length: 100, num_layers: 6",
     )
     run_exp(
-        num_hops=2,
+        num_hops=[1, 2, 3],
         seq_length=100,
         num_layers=6,
         run_name="num_hops: 2, seq_length: 100, num_layers: 6",
