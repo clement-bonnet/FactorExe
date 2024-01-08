@@ -263,7 +263,7 @@ if __name__ == "__main__":
         eval_num_hops=[1, 2, 3, 4, 5, 6, 8, 10],
         seq_length=100,
         num_layers=6,
-        learn_posemb=True,
+        learn_posemb=False,
         init_posemb_from_sin=True,
-        run_name="num_hops: [1,2,3,4], seq_length: 100, num_layers: 6, learn_posemb, init_posemb_from_sin",
+        run_name="num_hops: [1,2,3,4], seq_length: 100, num_layers: 6, learn_posemb, fix pos embeds",
     )

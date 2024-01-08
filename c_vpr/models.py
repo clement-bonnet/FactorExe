@@ -213,6 +213,10 @@ class Transformer(nn.Module):
         if config.init_posemb_from_sin:
             x = AddSinPositionEmbs(config)(x)
         else:
+            if not config.learn_posemb:
+                raise ValueError(
+                    "learn_posemb is set to False, which requires init_posemb_from_sin to be True, got False."
+                )
             pos_embed = nn.Embed(
                 num_embeddings=config.max_len, features=config.emb_dim, name="pos_embed"
             )(jnp.arange(config.max_len))
