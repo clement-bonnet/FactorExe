@@ -206,15 +206,15 @@ class Transformer(nn.Module):
         config = self.config
 
         x = inputs.astype("int32")
-        tok_embed = nn.Embed(
+        x = nn.Embed(
             num_embeddings=config.vocab_size, features=config.emb_dim, name="tok_embed"
         )(x)
-        # x = AddPositionEmbs(config)(tok_embed)
+        # x = AddPositionEmbs(config)(x)
         assert config.learn_posemb
         pos_embed = nn.Embed(
             num_embeddings=config.max_len, features=config.emb_dim, name="pos_embed"
-        )(x)
-        x = tok_embed + pos_embed
+        )(jnp.arange(config.max_len))
+        x = x + pos_embed
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
 
         for _ in range(config.num_repeat_model):
