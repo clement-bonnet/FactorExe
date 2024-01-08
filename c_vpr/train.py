@@ -259,7 +259,7 @@ if __name__ == "__main__":
     run_exp(
         train_num_hops=[1, 2, 3, 4],
         eval_num_hops=[1, 2, 3, 4, 5, 6, 8, 10],
-        seq_length=25,
+        seq_length=100,
         num_layers=6,
-        run_name="num_hops: [1,2,3,4], seq_length: 25, num_layers: 6",
+        run_name="num_hops: [1,2,3,4], seq_length: 100, num_layers: 6",
     )
