@@ -197,8 +197,8 @@ def run_exp(
     num_layers: int = 2,
     num_repeat_model: int = 1,
     learning_rate: float = 5e-4,
-    num_iterations: int = 200_000,
-    batch_size: int = 256,
+    num_iterations: int = 400_000,
+    batch_size: int = 512,
     eval_size: int = 500,
     log_every: int = 100,
     learn_posemb: bool = True,
@@ -213,8 +213,8 @@ def run_exp(
         num_repeat_model=num_repeat_model,
         mlp_dim=1536,
         max_len=seq_length,
-        dropout_rate=0.1,
-        attention_dropout_rate=0.1,
+        dropout_rate=0.0,
+        attention_dropout_rate=0.0,
         learn_posemb=learn_posemb,
     )
     model = Transformer(config)
@@ -244,8 +244,8 @@ def run_exp(
 if __name__ == "__main__":
     run_exp(
         train_num_hops=[1, 2],
-        eval_num_hops=[1, 2],
-        seq_length=100,
+        eval_num_hops=[1, 2, 3, 4],
+        seq_length=50,
         num_layers=6,
-        run_name="num_hops: [1,2], seq_length: 100, num_layers: 6, learned_embeddings",
+        run_name="num_hops: [1,2], seq_length: 50, num_layers: 6, learned_embeddings",
     )
