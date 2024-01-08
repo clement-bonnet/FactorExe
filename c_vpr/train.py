@@ -214,6 +214,7 @@ def run_exp(
     use_bias: bool = False,
     activation: str = "silu",
     learn_posemb: bool = True,
+    init_posemb_from_sin: bool = False,
     run_name: Optional[str] = None,
 ):
     config = TransformerConfig(
@@ -230,6 +231,7 @@ def run_exp(
         use_bias=use_bias,
         activation=activation,
         learn_posemb=learn_posemb,
+        init_posemb_from_sin=init_posemb_from_sin,
     )
     model = Transformer(config)
     c_vpr = C_VPR(seq_length)
@@ -261,5 +263,7 @@ if __name__ == "__main__":
         eval_num_hops=[1, 2, 3, 4, 5, 6, 8, 10],
         seq_length=100,
         num_layers=6,
-        run_name="num_hops: [1,2,3,4], seq_length: 100, num_layers: 6",
+        learn_posemb=True,
+        init_posemb_from_sin=True,
+        run_name="num_hops: [1,2,3,4], seq_length: 100, num_layers: 6, learn_posemb, init_posemb_from_sin",
     )
