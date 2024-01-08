@@ -51,7 +51,9 @@ class Trainer:
         if verbose:
             num_params = sum(x.size for x in jax.tree_util.tree_leaves(params))
             logging.info("Number of parameters: {:,}".format(num_params))
-        optimizer = optax.adamw(learning_rate)
+        optimizer = optax.chain(
+            optax.clip_by_global_norm(1.0), optax.adamw(learning_rate)
+        )
         apply_fn = jax.jit(model.apply, static_argnames="deterministic")
         return TrainState.create(apply_fn=apply_fn, tx=optimizer, params=params)
 
