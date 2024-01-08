@@ -258,7 +258,47 @@ if __name__ == "__main__":
         train_num_hops=5,
         eval_num_hops=[1, 2, 3, 4, 5, 6, 8, 10],
         seq_length=100,
+        num_layers=1,
+        num_iterations=10_000,
+        run_name="diff: 5-100, num_layers: 1",
+    )
+    run_exp(
+        train_num_hops=5,
+        eval_num_hops=[1, 2, 3, 4, 5, 6, 8, 10],
+        seq_length=100,
+        num_layers=2,
+        num_iterations=10_000,
+        run_name="diff: 5-100, num_layers: 2",
+    )
+    run_exp(
+        train_num_hops=5,
+        eval_num_hops=[1, 2, 3, 4, 5, 6, 8, 10],
+        seq_length=100,
+        num_layers=3,
+        num_iterations=10_000,
+        run_name="diff: 5-100, num_layers: 3",
+    )
+    run_exp(
+        train_num_hops=5,
+        eval_num_hops=[1, 2, 3, 4, 5, 6, 8, 10],
+        seq_length=100,
+        num_layers=4,
+        num_iterations=10_000,
+        run_name="diff: 5-100, num_layers: 4",
+    )
+    run_exp(
+        train_num_hops=5,
+        eval_num_hops=[1, 2, 3, 4, 5, 6, 8, 10],
+        seq_length=100,
+        num_layers=5,
+        num_iterations=10_000,
+        run_name="diff: 5-100, num_layers: 5",
+    )
+    run_exp(
+        train_num_hops=5,
+        eval_num_hops=[1, 2, 3, 4, 5, 6, 8, 10],
+        seq_length=100,
         num_layers=6,
-        num_heads=6,
-        run_name="num_hops: 5, seq_length: 100, num_layers: 6, num_heads: 6",
+        num_iterations=10_000,
+        run_name="diff: 5-100, num_layers: 6",
     )

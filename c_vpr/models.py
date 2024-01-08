@@ -13,6 +13,7 @@ from flax import struct
 class TransformerConfig:
     """Global hyperparameters used to minimize obnoxious kwarg plumbing."""
 
+    # TODO: do ablation of what parameters actually matter (e.g. activation, use_bias or dropout_rate might not matter)
     vocab_size: int
     output_vocab_size: int
     emb_dim: int
