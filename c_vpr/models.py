@@ -1,11 +1,10 @@
 """Adapted from https://github.com/google/flax/blob/main/examples/nlp_seq/models.py"""
 
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import chex
 import jax
 import jax.numpy as jnp
-import numpy as np
 from flax import linen as nn
 from flax import struct
 
@@ -26,82 +25,7 @@ class TransformerConfig:
     attention_dropout_rate: float
     use_bias: bool
     activation: str = "silu"
-    learn_posemb: bool = True
-    init_posemb_from_sin: bool = False
     dtype: Any = jnp.float32
-
-
-class AddSinPositionEmbs(nn.Module):
-    """Adds (optionally learned) positional embeddings to the inputs.
-
-    Attributes:
-      config: TransformerConfig dataclass containing hyperparameters.
-    """
-
-    config: TransformerConfig
-
-    @nn.compact
-    def __call__(self, inputs: chex.Array) -> chex.Array:
-        """Applies AddSinPositionEmbs module.
-
-        By default this layer uses a fixed sinusoidal embedding table if
-        learn_posemb is False.
-
-        Args:
-          inputs: input data.
-
-        Returns:
-          output: `(bs, timesteps, in_dim)`
-        """
-        config = self.config
-        # inputs.shape is (batch_size, seq_len, emb_dim)
-        assert inputs.ndim == 3, (
-            "Number of dimensions should be 3, but it is: %d" % inputs.ndim
-        )
-        length = inputs.shape[1]
-        pos_emb_shape = (1, config.max_len, inputs.shape[-1])
-        if config.learn_posemb:
-            pos_embedding = self.param(
-                "pos_embedding",
-                AddSinPositionEmbs.sinusoidal_init(max_len=config.max_len),
-                pos_emb_shape,
-            )
-        else:
-            # Use a fixed (non-learned) sinusoidal position embedding.
-            pos_embedding = AddSinPositionEmbs.sinusoidal_init(max_len=config.max_len)(
-                None, pos_emb_shape, None
-            )
-        pe = pos_embedding[:, :length, :]
-        return inputs + pe
-
-    @classmethod
-    def sinusoidal_init(cls, max_len: int) -> Callable:
-        """1D Sinusoidal Position Embedding Initializer.
-
-        Args:
-            max_len: maximum possible length for the input
-
-        Returns:
-            output: init function returning `(1, max_len, d_feature)`
-        """
-
-        def init(
-            key: chex.PRNGKey, shape: tuple, dtype: np.dtype = np.float32
-        ) -> chex.Array:
-            """Sinusoidal init."""
-            del key, dtype
-            d_feature = shape[-1]
-            pe = np.zeros((max_len, d_feature), dtype=np.float32)
-            position = np.arange(0, max_len)[:, np.newaxis]
-            div_term = np.exp(
-                np.arange(0, d_feature, 2) * -(np.log(10000.0) / d_feature)
-            )
-            pe[:, 0::2] = np.sin(position * div_term)
-            pe[:, 1::2] = np.cos(position * div_term)
-            pe = pe[np.newaxis, :, :]  # [1, max_len, d_feature]
-            return jnp.array(pe)
-
-        return init
 
 
 class MlpBlock(nn.Module):
@@ -210,17 +134,10 @@ class Transformer(nn.Module):
         x = nn.Embed(
             num_embeddings=config.vocab_size, features=config.emb_dim, name="tok_embed"
         )(x)
-        if config.init_posemb_from_sin:
-            x = AddSinPositionEmbs(config)(x)
-        else:
-            if not config.learn_posemb:
-                raise ValueError(
-                    "learn_posemb is set to False, which requires init_posemb_from_sin to be True, got False."
-                )
-            pos_embed = nn.Embed(
-                num_embeddings=config.max_len, features=config.emb_dim, name="pos_embed"
-            )(jnp.arange(config.max_len))
-            x = x + pos_embed
+        pos_embed = nn.Embed(
+            num_embeddings=config.max_len, features=config.emb_dim, name="pos_embed"
+        )(jnp.arange(config.max_len))
+        x = x + pos_embed
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
 
         for _ in range(config.num_repeat_model):
@@ -248,8 +165,6 @@ if __name__ == "__main__":
         attention_dropout_rate=0.1,
         use_bias=False,
         activation="silu",
-        learn_posemb=True,
-        init_posemb_from_sin=False,
     )
     model = Transformer(config)
     key = jax.random.PRNGKey(0)
