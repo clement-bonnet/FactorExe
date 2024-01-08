@@ -26,11 +26,12 @@ class TransformerConfig:
     attention_dropout_rate: float
     use_bias: bool
     activation: str = "silu"
-    learn_posemb: bool = False
+    learn_posemb: bool = True
+    init_posemb_from_sin: bool = False
     dtype: Any = jnp.float32
 
 
-class AddPositionEmbs(nn.Module):
+class AddSinPositionEmbs(nn.Module):
     """Adds (optionally learned) positional embeddings to the inputs.
 
     Attributes:
@@ -41,7 +42,7 @@ class AddPositionEmbs(nn.Module):
 
     @nn.compact
     def __call__(self, inputs: chex.Array) -> chex.Array:
-        """Applies AddPositionEmbs module.
+        """Applies AddSinPositionEmbs module.
 
         By default this layer uses a fixed sinusoidal embedding table if
         learn_posemb is False.
@@ -62,12 +63,12 @@ class AddPositionEmbs(nn.Module):
         if config.learn_posemb:
             pos_embedding = self.param(
                 "pos_embedding",
-                AddPositionEmbs.sinusoidal_init(max_len=config.max_len),
+                AddSinPositionEmbs.sinusoidal_init(max_len=config.max_len),
                 pos_emb_shape,
             )
         else:
             # Use a fixed (non-learned) sinusoidal position embedding.
-            pos_embedding = AddPositionEmbs.sinusoidal_init(max_len=config.max_len)(
+            pos_embedding = AddSinPositionEmbs.sinusoidal_init(max_len=config.max_len)(
                 None, pos_emb_shape, None
             )
         pe = pos_embedding[:, :length, :]
@@ -209,12 +210,13 @@ class Transformer(nn.Module):
         x = nn.Embed(
             num_embeddings=config.vocab_size, features=config.emb_dim, name="tok_embed"
         )(x)
-        # x = AddPositionEmbs(config)(x)
-        assert config.learn_posemb
-        pos_embed = nn.Embed(
-            num_embeddings=config.max_len, features=config.emb_dim, name="pos_embed"
-        )(jnp.arange(config.max_len))
-        x = x + pos_embed
+        if config.init_posemb_from_sin:
+            x = AddSinPositionEmbs(config)(x)
+        else:
+            pos_embed = nn.Embed(
+                num_embeddings=config.max_len, features=config.emb_dim, name="pos_embed"
+            )(jnp.arange(config.max_len))
+            x = x + pos_embed
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
 
         for _ in range(config.num_repeat_model):
@@ -243,6 +245,7 @@ if __name__ == "__main__":
         use_bias=False,
         activation="silu",
         learn_posemb=True,
+        init_posemb_from_sin=False,
     )
     model = Transformer(config)
     key = jax.random.PRNGKey(0)
