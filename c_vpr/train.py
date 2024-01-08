@@ -243,9 +243,9 @@ def run_exp(
 
 if __name__ == "__main__":
     run_exp(
-        train_num_hops=[1, 2],
-        eval_num_hops=[1, 2, 3, 4],
+        train_num_hops=[1, 2, 3, 4],
+        eval_num_hops=[1, 2, 3, 4, 5],
         seq_length=50,
         num_layers=6,
-        run_name="num_hops: [1,2], seq_length: 50, num_layers: 6, learned_embeddings",
+        run_name="num_hops: [1,2,3,4], seq_length: 50, num_layers: 6, learned_embeddings",
     )
