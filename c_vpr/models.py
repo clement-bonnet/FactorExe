@@ -24,35 +24,9 @@ class TransformerConfig:
     max_len: int
     dropout_rate: float
     attention_dropout_rate: float
+    use_bias: bool
     learn_posemb: bool = False
     dtype: Any = jnp.float32
-
-
-def sinusoidal_init(max_len: int) -> Callable:
-    """1D Sinusoidal Position Embedding Initializer.
-
-    Args:
-        max_len: maximum possible length for the input
-
-    Returns:
-        output: init function returning `(1, max_len, d_feature)`
-    """
-
-    def init(
-        key: chex.PRNGKey, shape: tuple, dtype: np.dtype = np.float32
-    ) -> chex.Array:
-        """Sinusoidal init."""
-        del key, dtype
-        d_feature = shape[-1]
-        pe = np.zeros((max_len, d_feature), dtype=np.float32)
-        position = np.arange(0, max_len)[:, np.newaxis]
-        div_term = np.exp(np.arange(0, d_feature, 2) * -(np.log(10000.0) / d_feature))
-        pe[:, 0::2] = np.sin(position * div_term)
-        pe[:, 1::2] = np.cos(position * div_term)
-        pe = pe[np.newaxis, :, :]  # [1, max_len, d_feature]
-        return jnp.array(pe)
-
-    return init
 
 
 class AddPositionEmbs(nn.Module):
@@ -86,15 +60,46 @@ class AddPositionEmbs(nn.Module):
         pos_emb_shape = (1, config.max_len, inputs.shape[-1])
         if config.learn_posemb:
             pos_embedding = self.param(
-                "pos_embedding", sinusoidal_init(max_len=config.max_len), pos_emb_shape
+                "pos_embedding",
+                AddPositionEmbs.sinusoidal_init(max_len=config.max_len),
+                pos_emb_shape,
             )
         else:
             # Use a fixed (non-learned) sinusoidal position embedding.
-            pos_embedding = sinusoidal_init(max_len=config.max_len)(
+            pos_embedding = AddPositionEmbs.sinusoidal_init(max_len=config.max_len)(
                 None, pos_emb_shape, None
             )
         pe = pos_embedding[:, :length, :]
         return inputs + pe
+
+    @classmethod
+    def sinusoidal_init(cls, max_len: int) -> Callable:
+        """1D Sinusoidal Position Embedding Initializer.
+
+        Args:
+            max_len: maximum possible length for the input
+
+        Returns:
+            output: init function returning `(1, max_len, d_feature)`
+        """
+
+        def init(
+            key: chex.PRNGKey, shape: tuple, dtype: np.dtype = np.float32
+        ) -> chex.Array:
+            """Sinusoidal init."""
+            del key, dtype
+            d_feature = shape[-1]
+            pe = np.zeros((max_len, d_feature), dtype=np.float32)
+            position = np.arange(0, max_len)[:, np.newaxis]
+            div_term = np.exp(
+                np.arange(0, d_feature, 2) * -(np.log(10000.0) / d_feature)
+            )
+            pe[:, 0::2] = np.sin(position * div_term)
+            pe[:, 1::2] = np.cos(position * div_term)
+            pe = pe[np.newaxis, :, :]  # [1, max_len, d_feature]
+            return jnp.array(pe)
+
+        return init
 
 
 class MlpBlock(nn.Module):
@@ -113,10 +118,10 @@ class MlpBlock(nn.Module):
         """Applies Transformer MlpBlock module."""
         config = self.config
         actual_out_dim = inputs.shape[-1] if self.out_dim is None else self.out_dim
-        x = nn.Dense(config.mlp_dim, dtype=config.dtype)(inputs)
+        x = nn.Dense(config.mlp_dim, config.use_bias, config.dtype)(inputs)
         x = nn.relu(x)
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
-        output = nn.Dense(actual_out_dim, dtype=config.dtype)(x)
+        output = nn.Dense(actual_out_dim, config.use_bias, config.dtype)(x)
         output = nn.Dropout(rate=config.dropout_rate)(
             output, deterministic=deterministic
         )
@@ -147,19 +152,20 @@ class TransformerLayer(nn.Module):
 
         # Attention block.
         assert inputs.ndim == 3
-        x = nn.LayerNorm(dtype=config.dtype)(inputs)
+        x = nn.LayerNorm(dtype=config.dtype, use_bias=config.use_bias)(inputs)
         x = nn.MultiHeadDotProductAttention(
             num_heads=config.num_heads,
             dtype=config.dtype,
             dropout_rate=config.attention_dropout_rate,
             deterministic=deterministic,
+            use_bias=config.use_bias,
         )(x, x)
 
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
         x = x + inputs
 
         # MLP block.
-        y = nn.LayerNorm(dtype=config.dtype)(x)
+        y = nn.LayerNorm(dtype=config.dtype, use_bias=config.use_bias)(x)
         y = MlpBlock(config=config)(y, deterministic=deterministic)
         return x + y
 
@@ -191,19 +197,24 @@ class Transformer(nn.Module):
         config = self.config
 
         x = inputs.astype("int32")
-        x = nn.Embed(
-            num_embeddings=config.vocab_size, features=config.emb_dim, name="embed"
+        tok_embed = nn.Embed(
+            num_embeddings=config.vocab_size, features=config.emb_dim, name="tok_embed"
         )(x)
+        # x = AddPositionEmbs(config)(tok_embed)
+        assert config.learn_posemb
+        pos_embed = nn.Embed(
+            num_embeddings=config.max_len, features=config.emb_dim, name="pos_embed"
+        )(x)
+        x = tok_embed + pos_embed
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
-        x = AddPositionEmbs(config)(x)
 
         for _ in range(config.num_repeat_model):
             for layer in self.transformer_layers:
                 x = layer(x, deterministic=deterministic)
 
-        x = nn.LayerNorm(dtype=config.dtype)(x)
+        x = nn.LayerNorm(dtype=config.dtype, use_bias=config.use_bias)(x)
         x = x.mean(axis=1)
-        logits = nn.Dense(config.output_vocab_size)(x)
+        logits = nn.Dense(config.output_vocab_size, config.use_bias, config.dtype)(x)
         return logits
 
 
@@ -220,6 +231,7 @@ if __name__ == "__main__":
         max_len=seq_length,
         dropout_rate=0.1,
         attention_dropout_rate=0.1,
+        use_bias=False,
     )
     model = Transformer(config)
     key = jax.random.PRNGKey(0)
