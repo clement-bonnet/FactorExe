@@ -103,7 +103,11 @@ class Trainer:
 
         grads, logits = jax.grad(loss_fn, has_aux=True)(state.params, dropout_key)
         state = state.apply_gradients(grads=grads)
-        metrics = self.compute_metrics(logits=logits, labels=labels)
+        metrics = self.compute_metrics(logits, labels)
+        grad_norm = jnp.sqrt(
+            sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)])
+        )
+        metrics.update(grad_norm=grad_norm)
         return state, metrics
 
     def train_epoch(
