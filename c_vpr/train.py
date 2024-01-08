@@ -206,6 +206,7 @@ def run_exp(
     eval_size: int = 500,
     log_every: int = 100,
     use_bias: bool = False,
+    activation: str = "silu",
     learn_posemb: bool = True,
     run_name: Optional[str] = None,
 ):
@@ -221,6 +222,7 @@ def run_exp(
         dropout_rate=dropout_rate,
         attention_dropout_rate=dropout_rate,
         use_bias=use_bias,
+        activation=activation,
         learn_posemb=learn_posemb,
     )
     model = Transformer(config)

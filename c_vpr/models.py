@@ -25,6 +25,7 @@ class TransformerConfig:
     dropout_rate: float
     attention_dropout_rate: float
     use_bias: bool
+    activation: str = "silu"
     learn_posemb: bool = False
     dtype: Any = jnp.float32
 
@@ -113,13 +114,21 @@ class MlpBlock(nn.Module):
     config: TransformerConfig
     out_dim: Optional[int] = None
 
+    def setup(self) -> None:
+        if self.config.activation == "relu":
+            self.activation = nn.relu
+        elif self.config.activation == "silu":
+            self.activation = nn.silu
+        else:
+            raise ValueError
+
     @nn.compact
     def __call__(self, inputs: chex.Array, deterministic: bool = True) -> chex.Array:
         """Applies Transformer MlpBlock module."""
         config = self.config
         actual_out_dim = inputs.shape[-1] if self.out_dim is None else self.out_dim
         x = nn.Dense(config.mlp_dim, config.use_bias, config.dtype)(inputs)
-        x = nn.relu(x)
+        x = self.activation(x)
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
         output = nn.Dense(actual_out_dim, config.use_bias, config.dtype)(x)
         output = nn.Dropout(rate=config.dropout_rate)(
@@ -232,6 +241,8 @@ if __name__ == "__main__":
         dropout_rate=0.1,
         attention_dropout_rate=0.1,
         use_bias=False,
+        activation="silu",
+        learn_posemb=True,
     )
     model = Transformer(config)
     key = jax.random.PRNGKey(0)
