@@ -261,5 +261,6 @@ if __name__ == "__main__":
         eval_num_hops=[1, 2, 3, 4, 5, 6, 8, 10],
         seq_length=25,
         num_layers=6,
-        run_name="num_hops: [1,2,3,4], seq_length: 25, num_layers: 6 no bias",
+        use_bias=True,
+        run_name="num_hops: [1,2,3,4], seq_length: 25, num_layers: 6 bias",
     )
