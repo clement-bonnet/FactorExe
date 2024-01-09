@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax.serialization import from_bytes, msgpack_serialize, to_state_dict
+from flax.training import checkpoints
 from flax.training.train_state import TrainState
 from tqdm.auto import trange
 
@@ -183,17 +184,27 @@ class Trainer:
     ) -> None:
         with open(ckpt_path, "wb") as outfile:
             outfile.write(msgpack_serialize(to_state_dict(state)))
-        artifact = wandb.Artifact(f"{wandb.run.name}-checkpoint", type="model")
+        run_name = wandb.run.name.replace(",", "").replace(":", "").replace(" ", "")
+        artifact = wandb.Artifact(f"{run_name}--checkpoint", type="model")
         artifact.add_file(ckpt_path)
         wandb.log_artifact(artifact, aliases=["latest", f"iteration_{iteration}"])
+        file_path = checkpoints.save_checkpoint(
+            ckpt_path, target=state, step=iteration, keep=1
+        )
+        logging.info(f"Saved checkpoint at {file_path}")
 
     def load_checkpoint(self, ckpt_file: str, state: TrainState) -> TrainState:
-        artifact = wandb.use_artifact(f"{wandb.run.name}-checkpoint:latest")
+        run_name = wandb.run.name.replace(",", "").replace(":", "").replace(" ", "")
+        artifact = wandb.use_artifact(f"{run_name}--checkpoint:latest")
         artifact_dir = artifact.download()
         ckpt_path = os.path.join(artifact_dir, ckpt_file)
         with open(ckpt_path, "rb") as data_file:
             byte_data = data_file.read()
         return from_bytes(state, byte_data)
+        # Alternatively
+        # restored_object = checkpoints.restore_checkpoint(
+        #     file_path, target=None
+        # )
 
 
 def run_exp(
@@ -249,7 +260,8 @@ def run_exp(
     )
     key = jax.random.PRNGKey(0)
     state = trainer.init_train_state(model, key, learning_rate)
-    trainer.train(state, key, num_iterations, log_every)
+    state = trainer.train(state, key, num_iterations, log_every)
+    trainer.save_checkpoint("checkpoint.msgpack", state, iteration=num_iterations)
     wandb.finish()
 
 
@@ -261,108 +273,4 @@ if __name__ == "__main__":
         num_layers=2,
         num_iterations=10_000,
         run_name="diff: 1-100, num_layers: 2",
-    )
-    run_exp(
-        train_num_hops=3,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=2,
-        num_iterations=10_000,
-        run_name="diff: 3-100, num_layers: 2",
-    )
-    run_exp(
-        train_num_hops=5,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=2,
-        num_iterations=10_000,
-        run_name="diff: 5-100, num_layers: 2",
-    )
-    run_exp(
-        train_num_hops=8,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=2,
-        num_iterations=10_000,
-        run_name="diff: 8-100, num_layers: 2",
-    )
-    run_exp(
-        train_num_hops=15,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=2,
-        num_iterations=10_000,
-        run_name="diff: 15-100, num_layers: 2",
-    )
-    run_exp(
-        train_num_hops=25,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=2,
-        num_iterations=10_000,
-        run_name="diff: 25-100, num_layers: 2",
-    )
-    run_exp(
-        train_num_hops=40,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=2,
-        num_iterations=10_000,
-        run_name="diff: 40-100, num_layers: 2",
-    )
-    run_exp(
-        train_num_hops=1,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=1,
-        num_iterations=10_000,
-        run_name="diff: 1-100, num_layers: 1",
-    )
-    run_exp(
-        train_num_hops=3,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=1,
-        num_iterations=10_000,
-        run_name="diff: 3-100, num_layers: 1",
-    )
-    run_exp(
-        train_num_hops=5,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=1,
-        num_iterations=10_000,
-        run_name="diff: 5-100, num_layers: 1",
-    )
-    run_exp(
-        train_num_hops=8,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=1,
-        num_iterations=10_000,
-        run_name="diff: 8-100, num_layers: 1",
-    )
-    run_exp(
-        train_num_hops=15,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=1,
-        num_iterations=10_000,
-        run_name="diff: 15-100, num_layers: 1",
-    )
-    run_exp(
-        train_num_hops=25,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=1,
-        num_iterations=10_000,
-        run_name="diff: 25-100, num_layers: 1",
-    )
-    run_exp(
-        train_num_hops=40,
-        eval_num_hops=[1, 2, 5, 6, 8, 10],
-        seq_length=100,
-        num_layers=1,
-        num_iterations=10_000,
-        run_name="diff: 40-100, num_layers: 1",
     )
