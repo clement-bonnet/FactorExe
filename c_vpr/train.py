@@ -8,7 +8,6 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax.serialization import from_bytes, msgpack_serialize, to_state_dict
-from flax.training import checkpoints
 from flax.training.train_state import TrainState
 from tqdm.auto import trange
 
@@ -190,10 +189,6 @@ class Trainer:
         artifact = wandb.Artifact(f"{run_name}--checkpoint", type="model")
         artifact.add_file(ckpt_path)
         wandb.log_artifact(artifact, aliases=["latest", f"iteration_{iteration}"])
-        file_path = checkpoints.save_checkpoint(
-            ckpt_path, target=state, step=iteration, keep=1
-        )
-        logging.info(f"Saved checkpoint at {file_path}")
 
     def load_checkpoint(self, ckpt_file: str, state: TrainState) -> TrainState:
         run_name = wandb.run.name.replace(",", "").replace(":", "").replace(" ", "")
@@ -203,10 +198,6 @@ class Trainer:
         with open(ckpt_path, "rb") as data_file:
             byte_data = data_file.read()
         return from_bytes(state, byte_data)
-        # Alternatively
-        # restored_object = checkpoints.restore_checkpoint(
-        #     file_path, target=None
-        # )
 
 
 def run_exp(
