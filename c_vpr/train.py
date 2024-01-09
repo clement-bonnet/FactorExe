@@ -24,7 +24,7 @@ class Trainer:
         self,
         c_vpr: C_VPR,
         train_num_hops: int | list[int],
-        eval_num_hops: int | list[int],
+        eval_num_hops: int | list[int] | None,
         seq_length: int,
         batch_size: int,
         eval_size: int,
@@ -123,6 +123,8 @@ class Trainer:
 
     def eval(self, state: TrainState, key: chex.PRNGKey) -> dict:
         metrics = {}
+        if self.eval_num_hops is None:
+            return metrics
         sample_keys = jax.random.split(key, len(self.eval_num_hops))
         for num_hops, sample_key in zip(self.eval_num_hops, sample_keys):
             keys = jax.random.split(sample_key, self.eval_size)
@@ -209,7 +211,7 @@ class Trainer:
 
 def run_exp(
     train_num_hops: int | list[int] = 3,
-    eval_num_hops: int | list[int] = 3,
+    eval_num_hops: int | list[int] | None = None,
     seq_length: int = 10,
     num_layers: int = 2,
     num_repeat_model: int = 1,
