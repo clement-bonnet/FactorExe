@@ -262,24 +262,48 @@ if __name__ == "__main__":
     run_exp(
         train_num_hops=3,
         eval_num_hops=[1, 5, 10, 20, 30, 40],
-        seq_length=100,
+        seq_length=1000,
         num_layers=1,
         num_iterations=10_000,
-        run_name="diff: 3-100, num_layers: 1",
+        run_name="diff: 3-1000, num_layers: 1",
     )
     run_exp(
         train_num_hops=3,
         eval_num_hops=[1, 5, 10, 20, 30, 40],
-        seq_length=100,
+        seq_length=1000,
         num_layers=2,
         num_iterations=10_000,
-        run_name="diff: 3-100, num_layers: 2",
+        run_name="diff: 3-1000, num_layers: 2",
     )
     run_exp(
         train_num_hops=3,
         eval_num_hops=[1, 5, 10, 20, 30, 40],
-        seq_length=100,
+        seq_length=1000,
         num_layers=3,
         num_iterations=10_000,
-        run_name="diff: 3-100, num_layers: 3",
+        run_name="diff: 3-1000, num_layers: 3",
+    )
+    run_exp(
+        train_num_hops=3,
+        eval_num_hops=[1, 5, 10, 20, 30, 40],
+        seq_length=1000,
+        num_layers=1,
+        num_iterations=10_000,
+        run_name="diff: 30-1000, num_layers: 1",
+    )
+    run_exp(
+        train_num_hops=3,
+        eval_num_hops=[1, 5, 10, 20, 30, 40],
+        seq_length=1000,
+        num_layers=2,
+        num_iterations=10_000,
+        run_name="diff: 30-1000, num_layers: 2",
+    )
+    run_exp(
+        train_num_hops=3,
+        eval_num_hops=[1, 5, 10, 20, 30, 40],
+        seq_length=1000,
+        num_layers=3,
+        num_iterations=10_000,
+        run_name="diff: 30-1000, num_layers: 3",
     )
