@@ -21,7 +21,7 @@ class TransformerConfig:
     num_heads: int
     num_layers: int
     num_repeat_model: int
-    mlp_dim: int
+    mlp_dim_factror: float
     max_len: int
     dropout_rate: float
     attention_dropout_rate: float
@@ -54,7 +54,9 @@ class MlpBlock(nn.Module):
         """Applies Transformer MlpBlock module."""
         config = self.config
         actual_out_dim = inputs.shape[-1] if self.out_dim is None else self.out_dim
-        x = nn.Dense(config.mlp_dim, config.use_bias, config.dtype)(inputs)
+        x = nn.Dense(
+            int(config.mlp_dim_factror * config.emb_dim), config.use_bias, config.dtype
+        )(inputs)
         x = self.activation(x)
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
         output = nn.Dense(actual_out_dim, config.use_bias, config.dtype)(x)
@@ -161,7 +163,7 @@ if __name__ == "__main__":
         num_heads=6,
         num_layers=6,
         num_repeat_model=1,
-        mlp_dim=1536,
+        mlp_dim_factror=4,
         max_len=seq_length,
         dropout_rate=0.1,
         attention_dropout_rate=0.1,
