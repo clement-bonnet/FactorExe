@@ -190,8 +190,11 @@ class Trainer:
         artifact.add_file(ckpt_path)
         wandb.log_artifact(artifact, aliases=["latest", f"iteration_{iteration}"])
 
-    def load_checkpoint(self, ckpt_file: str, state: TrainState) -> TrainState:
-        run_name = wandb.run.name.replace(",", "").replace(":", "").replace(" ", "")
+    def load_checkpoint(
+        self, ckpt_file: str, state: TrainState, run_name: Optional[str] = None
+    ) -> TrainState:
+        run_name = run_name or wandb.run.name
+        run_name = run_name.replace(",", "").replace(":", "").replace(" ", "")
         artifact = wandb.use_artifact(f"{run_name}--checkpoint:latest")
         artifact_dir = artifact.download()
         ckpt_path = os.path.join(artifact_dir, ckpt_file)
