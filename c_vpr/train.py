@@ -259,15 +259,15 @@ def run_exp(
 
 
 if __name__ == "__main__":
-    # run_exp(
-    #     train_num_hops=3,
-    #     eval_num_hops=None,
-    #     seq_length=300,
-    #     batch_size=128,
-    #     num_layers=1,
-    #     num_iterations=10_000,
-    #     run_name="diff: 3-300, num_layers: 1",
-    # )
+    run_exp(
+        train_num_hops=3,
+        eval_num_hops=None,
+        seq_length=300,
+        batch_size=128,
+        num_layers=1,
+        num_iterations=10_000,
+        run_name="diff: 3-300, num_layers: 1",
+    )
     run_exp(
         train_num_hops=30,
         eval_num_hops=None,
@@ -277,15 +277,15 @@ if __name__ == "__main__":
         num_iterations=10_000,
         run_name="diff: 30-300, num_layers: 1",
     )
-    # run_exp(
-    #     train_num_hops=3,
-    #     eval_num_hops=None,
-    #     seq_length=300,
-    #     batch_size=128,
-    #     num_layers=2,
-    #     num_iterations=10_000,
-    #     run_name="diff: 3-300, num_layers: 2",
-    # )
+    run_exp(
+        train_num_hops=3,
+        eval_num_hops=None,
+        seq_length=300,
+        batch_size=128,
+        num_layers=2,
+        num_iterations=10_000,
+        run_name="diff: 3-300, num_layers: 2",
+    )
     run_exp(
         train_num_hops=30,
         eval_num_hops=None,
@@ -295,15 +295,15 @@ if __name__ == "__main__":
         num_iterations=10_000,
         run_name="diff: 30-300, num_layers: 2",
     )
-    # run_exp(
-    #     train_num_hops=3,
-    #     eval_num_hops=None,
-    #     seq_length=300,
-    #     batch_size=128,
-    #     num_layers=3,
-    #     num_iterations=10_000,
-    #     run_name="diff: 3-300, num_layers: 3",
-    # )
+    run_exp(
+        train_num_hops=3,
+        eval_num_hops=None,
+        seq_length=300,
+        batch_size=128,
+        num_layers=3,
+        num_iterations=10_000,
+        run_name="diff: 3-300, num_layers: 3",
+    )
     run_exp(
         train_num_hops=30,
         eval_num_hops=None,
