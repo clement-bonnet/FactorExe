@@ -262,6 +262,7 @@ def run_exp(
 
 
 if __name__ == "__main__":
+    # Selected difficulties: [5-150, 10-300, 20-600]
     run_exp(
         train_num_hops=5,
         eval_num_hops=[3, 7],
