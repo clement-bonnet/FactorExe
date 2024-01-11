@@ -21,7 +21,11 @@ class C_VPR:  # noqa: N801
         return example
 
     def sample_n_hops(
-        self, key: chex.PRNGKey, num_hops: int, return_target: bool = False
+        self,
+        key: chex.PRNGKey,
+        num_hops: int,
+        return_cot: bool = False,
+        return_target: bool = False,
     ) -> chex.Array:
         """Uniformly samples a sequence with `num_hops` in it."""
         pointers_key, example_key, last_index_key = jax.random.split(key, 3)
@@ -47,10 +51,17 @@ class C_VPR:  # noqa: N801
         )
         example = example.at[last_index].set(target)
 
-        if return_target:
-            return example, target
+        if return_cot:
+            cot = pointers
+            if return_target:
+                return example, cot, target
+            else:
+                return example, cot
         else:
-            return example
+            if return_target:
+                return example, target
+            else:
+                return example
 
     def get_num_hops(self, example: chex.Array) -> int:
         num_hops, pointer = jnp.asarray(0, int), 0
