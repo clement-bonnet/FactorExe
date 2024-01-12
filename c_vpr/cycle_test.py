@@ -14,9 +14,11 @@ def cycle() -> Cycle:
 
 def test__c_vpr_sample(cycle: Cycle) -> None:
     key1, key2 = jax.random.split(jax.random.PRNGKey(0))
-    seq1 = jax.jit(cycle.sample)(key1)
+    num_hops1, seq1 = jax.jit(cycle.sample)(key1)
+    assert num_hops1.shape == ()
     assert isinstance(seq1, chex.Array)
-    seq2 = cycle.sample(key2)
+    num_hops2, seq2 = cycle.sample(key2)
+    assert num_hops1 != num_hops2
     assert not jnp.array_equal(seq1, seq2)
 
 

@@ -17,12 +17,16 @@ class Cycle:
         key: chex.PRNGKey,
         return_cot: bool = False,
         return_target: bool = False,
-    ) -> chex.Array:
+    ) -> tuple[chex.Array, ...]:
         hops_key, sample_key = jax.random.split(key)
         num_hops = jax.random.randint(
             hops_key, shape=(), minval=1, maxval=self.input_length
         )
-        return self.sample_n_hops(sample_key, num_hops, return_cot, return_target)
+        args = self.sample_n_hops(sample_key, num_hops, return_cot, return_target)
+        if isinstance(args, tuple):
+            return (num_hops, *args)
+        else:
+            return num_hops, args
 
     def sample_n_hops(
         self,
