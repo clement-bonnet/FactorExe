@@ -25,7 +25,7 @@ class TransformerConfig:
     max_len: int
     dropout_rate: float
     attention_dropout_rate: float
-    use_bias: bool
+    use_bias: bool = False
     activation: str = "silu"
     dtype: Any = jnp.float32
 

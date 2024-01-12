@@ -263,137 +263,137 @@ def run_exp(
 
 if __name__ == "__main__":
     # Selected difficulties: [5-150, 10-300, 20-600]
-    # run_exp(
-    #     train_num_hops=5,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=150,
-    #     batch_size=512,
-    #     num_layers=1,
-    #     num_iterations=20_000,
-    #     run_name="diff: 5-150, num_layers: 1",
-    # )
-    # run_exp(
-    #     train_num_hops=5,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=150,
-    #     batch_size=512,
-    #     num_layers=2,
-    #     num_iterations=20_000,
-    #     run_name="diff: 5-150, num_layers: 2",
-    # )
-    # run_exp(
-    #     train_num_hops=5,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=150,
-    #     batch_size=512,
-    #     num_layers=3,
-    #     num_iterations=20_000,
-    #     run_name="diff: 5-150, num_layers: 3",
-    # )
-    # run_exp(
-    #     train_num_hops=5,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=150,
-    #     batch_size=512,
-    #     num_layers=4,
-    #     num_iterations=20_000,
-    #     run_name="diff: 5-150, num_layers: 4",
-    # )
-    # run_exp(
-    #     train_num_hops=5,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=150,
-    #     batch_size=512,
-    #     num_layers=6,
-    #     num_iterations=20_000,
-    #     run_name="diff: 5-150, num_layers: 6",
-    # )
-    # run_exp(
-    #     train_num_hops=5,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=150,
-    #     batch_size=512,
-    #     num_layers=9,
-    #     num_iterations=20_000,
-    #     run_name="diff: 5-150, num_layers: 9",
-    # )
     run_exp(
-        train_num_hops=5,
+        train_num_hops=10,
         eval_num_hops=[3, 7],
-        seq_length=150,
+        seq_length=300,
+        batch_size=512,
+        num_layers=1,
+        num_iterations=20_000,
+        run_name="diff: 10-300, num_layers: 1",
+    )
+    run_exp(
+        train_num_hops=10,
+        eval_num_hops=[3, 7],
+        seq_length=300,
+        batch_size=512,
+        num_layers=2,
+        num_iterations=20_000,
+        run_name="diff: 10-300, num_layers: 2",
+    )
+    run_exp(
+        train_num_hops=10,
+        eval_num_hops=[3, 7],
+        seq_length=300,
+        batch_size=512,
+        num_layers=3,
+        num_iterations=20_000,
+        run_name="diff: 10-300, num_layers: 3",
+    )
+    run_exp(
+        train_num_hops=10,
+        eval_num_hops=[3, 7],
+        seq_length=300,
+        batch_size=512,
+        num_layers=4,
+        num_iterations=20_000,
+        run_name="diff: 10-300, num_layers: 4",
+    )
+    run_exp(
+        train_num_hops=10,
+        eval_num_hops=[3, 7],
+        seq_length=300,
+        batch_size=512,
+        num_layers=6,
+        num_iterations=20_000,
+        run_name="diff: 10-300, num_layers: 6",
+    )
+    run_exp(
+        train_num_hops=10,
+        eval_num_hops=[3, 7],
+        seq_length=300,
+        batch_size=512,
+        num_layers=9,
+        num_iterations=20_000,
+        run_name="diff: 10-300, num_layers: 9",
+    )
+    run_exp(
+        train_num_hops=10,
+        eval_num_hops=[3, 7],
+        seq_length=300,
         batch_size=512,
         num_layers=1,
         num_repeat_model=2,
         num_iterations=20_000,
-        run_name="diff: 5-150, num_layers: 1-2",
+        run_name="diff: 10-300, num_layers: 1-2",
     )
     run_exp(
-        train_num_hops=5,
+        train_num_hops=10,
         eval_num_hops=[3, 7],
-        seq_length=150,
+        seq_length=300,
         batch_size=512,
         num_layers=1,
         num_repeat_model=3,
         num_iterations=20_000,
-        run_name="diff: 5-150, num_layers: 1-3",
+        run_name="diff: 10-300, num_layers: 1-3",
     )
     run_exp(
-        train_num_hops=5,
+        train_num_hops=10,
         eval_num_hops=[3, 7],
-        seq_length=150,
+        seq_length=300,
         batch_size=512,
         num_layers=1,
         num_repeat_model=4,
         num_iterations=20_000,
-        run_name="diff: 5-150, num_layers: 1-4",
+        run_name="diff: 10-300, num_layers: 1-4",
     )
     run_exp(
-        train_num_hops=5,
+        train_num_hops=10,
         eval_num_hops=[3, 7],
-        seq_length=150,
+        seq_length=300,
         batch_size=512,
         num_layers=1,
         num_repeat_model=6,
         num_iterations=20_000,
-        run_name="diff: 5-150, num_layers: 1-6",
+        run_name="diff: 10-300, num_layers: 1-6",
     )
     run_exp(
-        train_num_hops=5,
+        train_num_hops=10,
         eval_num_hops=[3, 7],
-        seq_length=150,
+        seq_length=300,
         batch_size=512,
         num_layers=1,
         num_repeat_model=9,
         num_iterations=20_000,
-        run_name="diff: 5-150, num_layers: 1-9",
+        run_name="diff: 10-300, num_layers: 1-9",
     )
     run_exp(
-        train_num_hops=5,
+        train_num_hops=10,
         eval_num_hops=[3, 7],
-        seq_length=150,
+        seq_length=300,
         batch_size=512,
         num_layers=2,
         num_repeat_model=2,
         num_iterations=20_000,
-        run_name="diff: 5-150, num_layers: 2-2",
+        run_name="diff: 10-300, num_layers: 2-2",
     )
     run_exp(
-        train_num_hops=5,
+        train_num_hops=10,
         eval_num_hops=[3, 7],
-        seq_length=150,
+        seq_length=300,
         batch_size=512,
         num_layers=2,
         num_repeat_model=3,
         num_iterations=20_000,
-        run_name="diff: 5-150, num_layers: 2-3",
+        run_name="diff: 10-300, num_layers: 2-3",
     )
     run_exp(
-        train_num_hops=5,
+        train_num_hops=10,
         eval_num_hops=[3, 7],
-        seq_length=150,
+        seq_length=300,
         batch_size=512,
         num_layers=3,
         num_repeat_model=2,
         num_iterations=20_000,
-        run_name="diff: 5-150, num_layers: 3-2",
+        run_name="diff: 10-300, num_layers: 3-2",
     )
