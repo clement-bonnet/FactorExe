@@ -124,7 +124,7 @@ class Transformer(nn.Module):
 
         Args:
           inputs: input data
-          train: if it is training.
+          deterministic: if false dropout is applied otherwise it is not.
 
         Returns:
           output of a transformer encoder.

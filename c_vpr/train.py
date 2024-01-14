@@ -13,7 +13,7 @@ from tqdm.auto import trange
 
 import wandb
 from c_vpr.env import C_VPR
-from c_vpr.models import Transformer, TransformerConfig
+from c_vpr.transformer import Transformer, TransformerConfig
 
 logging.getLogger().setLevel(logging.INFO)
 
