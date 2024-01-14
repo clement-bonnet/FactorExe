@@ -9,6 +9,13 @@
 - `multiplication`: code for the `N*N` multiplication task.
 - `regression/`: old quasi-linear regression code, maybe reused later.
 
+## TODO
+
+- [ ]: implement pmap instead of jit
+- [ ]: add gradient accumulation to allow abritrary high batch sizes
+- [x]: implement cycle env
+- [ ]: implement transformer with chain of thought
+
 ## Questions
 
 - Should intermediate computations be discretely sampled or continuous (e.g. full embedding)? If the former, one will need RL to train the system. If the latter, one can backpropagate through the chain of thought which looks more like an RNN (with attention layers if one uses a small transformer as the factorized model). It is equivalent to a full transformer with complete weight sharing between layers.
