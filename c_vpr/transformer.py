@@ -76,7 +76,12 @@ class TransformerLayer(nn.Module):
     config: TransformerConfig
 
     @nn.compact
-    def __call__(self, inputs: chex.Array, deterministic: bool):
+    def __call__(
+        self,
+        inputs: chex.Array,
+        deterministic: bool,
+        pad_mask: Optional[chex.Array] = None,
+    ):
         """Applies TransformerLayer module.
 
         Args:
@@ -97,7 +102,7 @@ class TransformerLayer(nn.Module):
             dropout_rate=config.attention_dropout_rate,
             deterministic=deterministic,
             use_bias=config.use_bias,
-        )(x, x)
+        )(inputs_q=x, inputs_kv=x, mask=pad_mask, deterministic=deterministic)
 
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
         x = x + inputs
@@ -119,7 +124,7 @@ class Transformer(nn.Module):
         ]
 
     @nn.compact
-    def __call__(self, *, inputs, deterministic: bool):
+    def __call__(self, *, inputs: chex.Array, deterministic: bool):
         """Applies Transformer model on the inputs.
 
         Args:
