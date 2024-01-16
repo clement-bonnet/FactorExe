@@ -39,5 +39,5 @@ def test__c_vpr_sample_n_hops(cycle: Cycle) -> None:
 @pytest.mark.parametrize("num_hops", [1, 2, 3, 5, 8, 9])
 def test_functional__c_vpr_sample_n_hops(cycle: Cycle, num_hops: int) -> None:
     key = jax.random.PRNGKey(0)
-    sequence = cycle.sample_n_hops(key, num_hops)
+    sequence: chex.Array = cycle.sample_n_hops(key, num_hops)
     assert sequence.shape == (cycle.input_length,)

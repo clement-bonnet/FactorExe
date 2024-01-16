@@ -1,3 +1,5 @@
+from typing import Union
+
 import chex
 import jax
 import jax.numpy as jnp
@@ -34,7 +36,7 @@ class Cycle:
         num_hops: int,
         return_cot: bool = False,
         return_target: bool = False,
-    ) -> chex.Array:
+    ) -> Union[chex.Array, tuple[chex.Array, ...]]:
         """Uniformly samples a cycle with `num_hops` in it."""
         permutation = jax.random.permutation(key, jnp.arange(self.input_length))
         zero_index = permutation.argmin()

@@ -62,14 +62,16 @@ class Trainer:
     ) -> tuple[TrainState, dict]:
         num_hops_key, sample_key, dropout_key = jax.random.split(key, 3)
 
-        def sample_n_hops(key, num_hops_index):
+        def sample_n_hops(
+            key: chex.PRNGKey, num_hops_index: int
+        ) -> tuple[chex.Array, ...]:
             if len(self.train_num_hops) == 1:
                 del num_hops_index
                 return self.c_vpr.sample_n_hops(
                     key, self.train_num_hops[0], return_target=True
                 )
             else:
-                return jax.lax.switch(
+                return jax.lax.switch(  # type: ignore
                     num_hops_index,
                     [
                         functools.partial(
@@ -120,8 +122,8 @@ class Trainer:
         metrics = jax.tree_util.tree_map(jnp.mean, metrics)
         return state, metrics
 
-    def eval(self, state: TrainState, key: chex.PRNGKey) -> dict:
-        metrics = {}
+    def eval(self, state: TrainState, key: chex.PRNGKey) -> dict[str, chex.Array]:
+        metrics: dict[str, chex.Array] = {}
         if self.eval_num_hops is None:
             return metrics
         sample_keys = jax.random.split(key, len(self.eval_num_hops))
@@ -165,13 +167,15 @@ class Trainer:
             wandb.log(metrics, step=epoch * log_every)
         return state
 
-    def cross_entropy_loss(self, logits: chex.Array, labels: chex.Array) -> float:
+    def cross_entropy_loss(self, logits: chex.Array, labels: chex.Array) -> chex.Array:
         one_hot_encoded_labels = jax.nn.one_hot(labels, num_classes=self.seq_length)
         return optax.softmax_cross_entropy(
             logits=logits, labels=one_hot_encoded_labels
         ).mean()
 
-    def compute_metrics(self, logits: chex.Array, labels: chex.Array) -> dict:
+    def compute_metrics(
+        self, logits: chex.Array, labels: chex.Array
+    ) -> dict[str, chex.Array]:
         loss = self.cross_entropy_loss(logits=logits, labels=labels)
         accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
         metrics = {
@@ -221,7 +225,7 @@ def run_exp(
     use_bias: bool = False,
     activation: str = "silu",
     run_name: Optional[str] = None,
-):
+) -> None:
     config = TransformerConfig(
         vocab_size=seq_length,
         output_vocab_size=seq_length,

@@ -1,22 +1,26 @@
 """Adapted from https://github.com/google/flax/blob/main/examples/nlp_seq/models.py"""
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import chex
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
-from flax import struct
+
+if TYPE_CHECKING:
+    from dataclasses import dataclass
+else:
+    from flax.struct import dataclass
 
 
-@struct.dataclass
+@dataclass
 class TransformerConfig:
     """Global hyperparameters used to minimize obnoxious kwarg plumbing."""
 
     # TODO: do ablation of what parameters actually matter (e.g. activation,
     # use_bias or dropout_rate might not matter)
     vocab_size: int
-    output_vocab_size: int
+    output_vocab_size: Optional[int]
     emb_dim: int
     num_heads: int
     num_layers: int
@@ -81,7 +85,7 @@ class TransformerLayer(nn.Module):
         inputs: chex.Array,
         deterministic: bool,
         pad_mask: Optional[chex.Array] = None,
-    ):
+    ) -> chex.Array:
         """Applies TransformerLayer module.
 
         Args:
@@ -100,7 +104,6 @@ class TransformerLayer(nn.Module):
             num_heads=config.num_heads,
             dtype=config.dtype,
             dropout_rate=config.attention_dropout_rate,
-            deterministic=deterministic,
             use_bias=config.use_bias,
         )(inputs_q=x, inputs_kv=x, mask=pad_mask, deterministic=deterministic)
 
@@ -118,13 +121,13 @@ class Transformer(nn.Module):
 
     config: TransformerConfig
 
-    def setup(self):
+    def setup(self) -> None:
         self.transformer_layers = [
             TransformerLayer(self.config) for _ in range(self.config.num_layers)
         ]
 
     @nn.compact
-    def __call__(self, *, inputs: chex.Array, deterministic: bool):
+    def __call__(self, *, inputs: chex.Array, deterministic: bool) -> chex.Array:
         """Applies Transformer model on the inputs.
 
         Args:
@@ -166,14 +169,12 @@ if __name__ == "__main__":
         output_vocab_size=seq_length,
         emb_dim=384,
         num_heads=6,
-        num_layers=6,
+        num_layers=2,
         num_repeat_model=1,
         mlp_dim_factror=4,
         max_len=seq_length,
         dropout_rate=0.1,
         attention_dropout_rate=0.1,
-        use_bias=False,
-        activation="silu",
     )
     model = Transformer(config)
     key = jax.random.PRNGKey(0)

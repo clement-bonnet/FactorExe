@@ -1,3 +1,5 @@
+from typing import Union
+
 import chex
 import jax
 import jax.numpy as jnp
@@ -26,7 +28,7 @@ class C_VPR:  # noqa: N801
         num_hops: int,
         return_cot: bool = False,
         return_target: bool = False,
-    ) -> chex.Array:
+    ) -> Union[chex.Array, tuple[chex.Array, ...]]:
         """Uniformly samples a sequence with `num_hops` in it."""
         pointers_key, example_key, last_index_key = jax.random.split(key, 3)
         pointers = jax.random.choice(
@@ -63,7 +65,7 @@ class C_VPR:  # noqa: N801
             else:
                 return example
 
-    def get_num_hops(self, example: chex.Array) -> int:
+    def get_num_hops(self, example: chex.Array) -> chex.Array:
         num_hops, pointer = jnp.asarray(0, int), 0
         new_pointer = example[pointer]
 
