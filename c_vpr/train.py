@@ -353,6 +353,52 @@ if __name__ == "__main__":
         num_iterations=20_000,
         run_name="diff: 10-300, num_layers: 1, AugT",
     )
+    run_augmented_transformer_exp(
+        train_num_hops=10,
+        eval_num_hops=[3, 7],
+        seq_length=300,
+        batch_size=256,
+        encoder_num_repeat_model=0,
+        cot_module=False,
+        decoder_num_layers=2,
+        num_iterations=20_000,
+        run_name="diff: 10-300, num_layers: 2, AugT",
+    )
+    run_augmented_transformer_exp(
+        train_num_hops=10,
+        eval_num_hops=[3, 7],
+        seq_length=300,
+        batch_size=256,
+        encoder_num_repeat_model=0,
+        cot_module=False,
+        decoder_num_layers=3,
+        num_iterations=20_000,
+        run_name="diff: 10-300, num_layers: 3, AugT",
+    )
+    run_augmented_transformer_exp(
+        train_num_hops=10,
+        eval_num_hops=[3, 7],
+        seq_length=300,
+        batch_size=256,
+        encoder_num_repeat_model=0,
+        cot_module=False,
+        decoder_num_layers=1,
+        decoder_num_repeat_model=2,
+        num_iterations=20_000,
+        run_name="diff: 10-300, num_layers: 1-2, AugT",
+    )
+    run_augmented_transformer_exp(
+        train_num_hops=10,
+        eval_num_hops=[3, 7],
+        seq_length=300,
+        batch_size=256,
+        encoder_num_repeat_model=0,
+        cot_module=False,
+        decoder_num_layers=1,
+        decoder_num_repeat_model=3,
+        num_iterations=20_000,
+        run_name="diff: 10-300, num_layers: 1-3, AugT",
+    )
     # run_transformer_exp(
     #     train_num_hops=10,
     #     eval_num_hops=[3, 7],
