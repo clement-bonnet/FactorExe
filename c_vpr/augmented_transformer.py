@@ -1,17 +1,21 @@
 """Adapted from https://github.com/google/flax/blob/main/examples/nlp_seq/models.py"""
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import chex
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
-from flax import struct
 
 from c_vpr.transformer import MlpBlock, TransformerConfig, TransformerLayer
 
+if TYPE_CHECKING:
+    from dataclasses import dataclass
+else:
+    from flax.struct import dataclass
 
-@struct.dataclass
+
+@dataclass
 class CoTModuleConfig:
     cross_transformer_config: TransformerConfig
     cot_seq_length: int
@@ -422,24 +426,24 @@ if __name__ == "__main__":
         dropout_rate=0.1,
         attention_dropout_rate=0.1,
     )
-    cot_module_config = None
-    # cot_seq_length = 5
-    # cot_module_config = CoTModuleConfig(
-    #     cross_transformer_config=TransformerConfig(
-    #         vocab_size=seq_length,
-    #         output_vocab_size=seq_length,
-    #         emb_dim=384,
-    #         num_heads=6,
-    #         num_layers=1,
-    #         num_repeat_model=1,
-    #         mlp_dim_factror=4,
-    #         max_len=cot_seq_length,
-    #         dropout_rate=0.1,
-    #         attention_dropout_rate=0.1,
-    #     ),
-    #     cot_seq_length=cot_seq_length,
-    #     cot_vocab_size=seq_length,
-    # )
+    cot_seq_length = 5
+    cot_module_config = CoTModuleConfig(
+        cross_transformer_config=TransformerConfig(
+            vocab_size=None,
+            output_vocab_size=None,
+            emb_dim=384,
+            num_heads=6,
+            num_layers=1,
+            num_repeat_model=1,
+            mlp_dim_factror=4,
+            max_len=None,
+            dropout_rate=0.1,
+            attention_dropout_rate=0.1,
+        ),
+        cot_seq_length=cot_seq_length,
+        cot_vocab_size=seq_length,
+    )
+    # cot_module_config = None
     decoder_config = TransformerConfig(
         vocab_size=seq_length,
         output_vocab_size=seq_length,

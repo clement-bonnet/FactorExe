@@ -19,14 +19,14 @@ class TransformerConfig:
 
     # TODO: do ablation of what parameters actually matter (e.g. activation,
     # use_bias or dropout_rate might not matter)
-    vocab_size: int
+    vocab_size: Optional[int]
     output_vocab_size: Optional[int]
     emb_dim: int
     num_heads: int
     num_layers: int
     num_repeat_model: int
     mlp_dim_factror: float
-    max_len: int
+    max_len: Optional[int]
     dropout_rate: float
     attention_dropout_rate: float
     use_bias: bool = False
