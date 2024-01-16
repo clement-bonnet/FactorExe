@@ -14,8 +14,11 @@
 - [ ]: implement pmap instead of jit
 - [ ]: add gradient accumulation to allow abritrary high batch sizes
 - [x]: implement cycle env
-- [ ]: implement transformer with chain of thought
+- [x]: implement transformer with chain of thought
 - [ ]: implement learning rate warmup
+- [ ]: add training on Cycle env (+ find good difficulty)
+- [ ]: implement chain of thought training
+- [ ]: implement RL training
 
 ## Questions
 
