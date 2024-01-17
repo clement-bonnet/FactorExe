@@ -35,9 +35,7 @@ class Trainer:
         self.train_num_hops = (
             [train_num_hops] if isinstance(train_num_hops, int) else train_num_hops
         )
-        self.eval_num_hops = (
-            [eval_num_hops] if isinstance(eval_num_hops, int) else eval_num_hops
-        )
+        self.eval_num_hops = [eval_num_hops] if isinstance(eval_num_hops, int) else eval_num_hops
         self.seq_length = seq_length
         self.batch_size = batch_size
         self.eval_size = eval_size
@@ -55,25 +53,17 @@ class Trainer:
         if verbose:
             num_params = sum(x.size for x in jax.tree_util.tree_leaves(params))
             logging.info("Number of parameters: {:,}".format(num_params))
-        optimizer = optax.chain(
-            optax.clip_by_global_norm(1.0), optax.adamw(learning_rate)
-        )
+        optimizer = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(learning_rate))
         apply_fn = jax.jit(model.apply, static_argnames="deterministic")
         return TrainState.create(apply_fn=apply_fn, tx=optimizer, params=params)
 
-    def train_step(
-        self, state: TrainState, key: chex.PRNGKey
-    ) -> tuple[TrainState, dict]:
+    def train_step(self, state: TrainState, key: chex.PRNGKey) -> tuple[TrainState, dict]:
         num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
 
-        def sample_n_hops(
-            key: chex.PRNGKey, num_hops_index: int
-        ) -> tuple[chex.Array, ...]:
+        def sample_n_hops(key: chex.PRNGKey, num_hops_index: int) -> tuple[chex.Array, ...]:
             if len(self.train_num_hops) == 1:
                 del num_hops_index
-                return self.env.sample_n_hops(
-                    key, self.train_num_hops[0], return_target=True
-                )
+                return self.env.sample_n_hops(key, self.train_num_hops[0], return_target=True)
             else:
                 return jax.lax.switch(  # type: ignore
                     num_hops_index,
@@ -97,9 +87,7 @@ class Trainer:
         sample_keys = jax.random.split(sample_key, self.batch_size)
         examples, labels = jax.vmap(sample_n_hops)(sample_keys, num_hops_indices)
 
-        def loss_fn(
-            params: dict, dropout_key: chex.PRNGKey
-        ) -> tuple[TrainState, chex.Array]:
+        def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
             input_kwargs = dict(  # noqa: C408
                 variables={"params": params},
                 inputs=examples,
@@ -115,9 +103,7 @@ class Trainer:
         grads, logits = jax.grad(loss_fn, has_aux=True)(state.params, dropout_key)
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
-        grad_norm = jnp.sqrt(
-            sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)])
-        )
+        grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
         metrics.update(grad_norm=grad_norm)
         return state, metrics
 
@@ -137,9 +123,7 @@ class Trainer:
         for num_hops, sample_key in zip(self.eval_num_hops, sample_keys):
             keys = jax.random.split(sample_key, self.eval_size)
             examples, labels = jax.vmap(
-                functools.partial(
-                    self.env.sample_n_hops, num_hops=num_hops, return_target=True
-                )
+                functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
             )(keys)
             logits = state.apply_fn(
                 {"params": state.params},
@@ -162,9 +146,7 @@ class Trainer:
         num_iterations: int,
         log_every: int,
     ) -> TrainState:
-        jit_train_epoch = jax.jit(
-            functools.partial(self.train_epoch, num_steps=log_every)
-        )
+        jit_train_epoch = jax.jit(functools.partial(self.train_epoch, num_steps=log_every))
         jit_eval = jax.jit(self.eval)
         num_epochs = num_iterations // log_every
         for epoch in trange(1, num_epochs + 1):
@@ -176,13 +158,9 @@ class Trainer:
 
     def cross_entropy_loss(self, logits: chex.Array, labels: chex.Array) -> chex.Array:
         one_hot_encoded_labels = jax.nn.one_hot(labels, num_classes=self.seq_length)
-        return optax.softmax_cross_entropy(
-            logits=logits, labels=one_hot_encoded_labels
-        ).mean()
+        return optax.softmax_cross_entropy(logits=logits, labels=one_hot_encoded_labels).mean()
 
-    def compute_metrics(
-        self, logits: chex.Array, labels: chex.Array
-    ) -> dict[str, chex.Array]:
+    def compute_metrics(self, logits: chex.Array, labels: chex.Array) -> dict[str, chex.Array]:
         loss = self.cross_entropy_loss(logits=logits, labels=labels)
         accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
         metrics = {
@@ -191,9 +169,7 @@ class Trainer:
         }
         return metrics
 
-    def save_checkpoint(
-        self, ckpt_path: str, state: TrainState, iteration: int
-    ) -> None:
+    def save_checkpoint(self, ckpt_path: str, state: TrainState, iteration: int) -> None:
         with open(ckpt_path, "wb") as outfile:
             outfile.write(msgpack_serialize(to_state_dict(state)))
         run_name = wandb.run.name.replace(",", "").replace(":", "").replace(" ", "")
@@ -398,25 +374,107 @@ if __name__ == "__main__":
     # Selected Cycle difficulties: [3-50]
     run_augmented_transformer_exp(
         env_name="Cycle",
-        train_num_hops=3,
-        eval_num_hops=[2, 3, 4],
+        train_num_hops=1,
+        eval_num_hops=[1, 2, 3, 4],
         seq_length=50,
         batch_size=256,
-        log_every=50,
+        log_every=100,
         encoder_num_repeat_model=0,
         cot_module=False,
         decoder_num_layers=1,
-        num_iterations=5_000,
-        run_name="Cycle 3-50, AT1",
+        num_iterations=10_000,
+        run_name="Cycle 1-50, AT1",
     )
-    run_transformer_exp(
+    run_augmented_transformer_exp(
         env_name="Cycle",
-        train_num_hops=3,
-        eval_num_hops=[2, 3, 4],
+        train_num_hops=2,
+        eval_num_hops=[1, 2, 3, 4],
         seq_length=50,
         batch_size=256,
-        log_every=50,
-        num_layers=1,
-        num_iterations=5_000,
-        run_name="Cycle 3-50, T1",
+        log_every=100,
+        encoder_num_repeat_model=0,
+        cot_module=False,
+        decoder_num_layers=1,
+        num_iterations=10_000,
+        run_name="Cycle 2-50, AT1",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        train_num_hops=2,
+        eval_num_hops=[1, 2, 3, 4],
+        seq_length=50,
+        batch_size=256,
+        log_every=100,
+        encoder_num_repeat_model=0,
+        cot_module=False,
+        decoder_num_layers=2,
+        num_iterations=10_000,
+        run_name="Cycle 2-50, AT2",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        train_num_hops=2,
+        eval_num_hops=[1, 2, 3, 4],
+        seq_length=50,
+        batch_size=256,
+        log_every=100,
+        encoder_num_repeat_model=0,
+        cot_module=False,
+        decoder_num_layers=3,
+        num_iterations=10_000,
+        run_name="Cycle 2-50, AT3",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        train_num_hops=2,
+        eval_num_hops=[1, 2, 3, 4],
+        seq_length=50,
+        batch_size=256,
+        log_every=100,
+        encoder_num_repeat_model=0,
+        cot_module=False,
+        decoder_num_layers=1,
+        decoder_num_repeat_model=2,
+        num_iterations=10_000,
+        run_name="Cycle 2-50, AT1-2",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        train_num_hops=3,
+        eval_num_hops=[1, 2, 3, 4],
+        seq_length=50,
+        batch_size=256,
+        log_every=100,
+        encoder_num_repeat_model=0,
+        cot_module=False,
+        decoder_num_layers=1,
+        num_iterations=10_000,
+        run_name="Cycle 3-50, AT1",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        train_num_hops=3,
+        eval_num_hops=[1, 2, 3, 4],
+        seq_length=50,
+        batch_size=256,
+        log_every=100,
+        encoder_num_repeat_model=0,
+        cot_module=False,
+        decoder_num_layers=2,
+        num_iterations=10_000,
+        run_name="Cycle 3-50, AT2",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        train_num_hops=3,
+        eval_num_hops=[1, 2, 3, 4],
+        seq_length=50,
+        batch_size=256,
+        log_every=100,
+        encoder_num_repeat_model=0,
+        cot_module=False,
+        decoder_num_layers=1,
+        decoder_num_repeat_model=2,
+        num_iterations=10_000,
+        run_name="Cycle 3-50, AT1-2",
     )
