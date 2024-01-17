@@ -14,6 +14,7 @@ from tqdm.auto import trange
 import wandb
 from c_vpr.augmented_transformer import AugmentedTransformer, CoTModuleConfig
 from c_vpr.env import C_VPR
+from c_vpr.cycle import Cycle
 from c_vpr.transformer import Transformer, TransformerConfig
 
 logging.getLogger().setLevel(logging.INFO)
@@ -22,7 +23,7 @@ logging.getLogger().setLevel(logging.INFO)
 class Trainer:
     def __init__(
         self,
-        c_vpr: C_VPR,
+        env: C_VPR | Cycle,
         train_num_hops: int | list[int],
         eval_num_hops: int | list[int] | None,
         seq_length: int,
@@ -30,7 +31,7 @@ class Trainer:
         eval_size: int,
         augmented_transformer: bool = True,
     ) -> None:
-        self.c_vpr = c_vpr
+        self.env = env
         self.train_num_hops = (
             [train_num_hops] if isinstance(train_num_hops, int) else train_num_hops
         )
@@ -62,13 +63,13 @@ class Trainer:
         def sample_n_hops(key: chex.PRNGKey, num_hops_index: int) -> tuple[chex.Array, ...]:
             if len(self.train_num_hops) == 1:
                 del num_hops_index
-                return self.c_vpr.sample_n_hops(key, self.train_num_hops[0], return_target=True)
+                return self.env.sample_n_hops(key, self.train_num_hops[0], return_target=True)
             else:
                 return jax.lax.switch(  # type: ignore
                     num_hops_index,
                     [
                         functools.partial(
-                            self.c_vpr.sample_n_hops,
+                            self.env.sample_n_hops,
                             num_hops=num_hops,
                             return_target=True,
                         )
@@ -122,7 +123,7 @@ class Trainer:
         for num_hops, sample_key in zip(self.eval_num_hops, sample_keys):
             keys = jax.random.split(sample_key, self.eval_size)
             examples, labels = jax.vmap(
-                functools.partial(self.c_vpr.sample_n_hops, num_hops=num_hops, return_target=True)
+                functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
             )(keys)
             logits = state.apply_fn(
                 {"params": state.params},
@@ -190,6 +191,7 @@ class Trainer:
 
 
 def run_transformer_exp(
+    env_name: str = "C_VPR",
     train_num_hops: int | list[int] = 3,
     eval_num_hops: int | list[int] | None = None,
     seq_length: int = 10,
@@ -219,7 +221,12 @@ def run_transformer_exp(
         attention_dropout_rate=dropout_rate,
     )
     model = Transformer(config)
-    c_vpr = C_VPR(seq_length)
+    if env_name == "C_VPR":
+        env = C_VPR(seq_length)
+    elif env_name == "Cycle":
+        env = Cycle(seq_length)
+    else:
+        raise ValueError(f"Unknown environment: {env_name}")
 
     wandb.init(
         project="FactorExe",
@@ -233,7 +240,7 @@ def run_transformer_exp(
     wandb.config.batch_size = batch_size
     wandb.config.eval_size = eval_size
 
-    trainer = Trainer(c_vpr, train_num_hops, eval_num_hops, seq_length, batch_size, eval_size)
+    trainer = Trainer(env, train_num_hops, eval_num_hops, seq_length, batch_size, eval_size)
     key = jax.random.PRNGKey(0)
     state = trainer.init_train_state(model, key, learning_rate)
     state = trainer.train(state, key, num_iterations, log_every)
@@ -242,6 +249,7 @@ def run_transformer_exp(
 
 
 def run_augmented_transformer_exp(
+    env_name: str = "C_VPR",
     train_num_hops: int | list[int] = 3,
     eval_num_hops: int | list[int] | None = None,
     seq_length: int = 10,
@@ -314,7 +322,12 @@ def run_augmented_transformer_exp(
         cot_module_config,
         decoder_config,
     )
-    c_vpr = C_VPR(seq_length)
+    if env_name == "C_VPR":
+        env = C_VPR(seq_length)
+    elif env_name == "Cycle":
+        env = Cycle(seq_length)
+    else:
+        raise ValueError(f"Unknown environment: {env_name}")
 
     config = {}
     for c in [encoder_config, cot_module_config, decoder_config]:
@@ -332,7 +345,7 @@ def run_augmented_transformer_exp(
     wandb.config.batch_size = batch_size
     wandb.config.eval_size = eval_size
 
-    trainer = Trainer(c_vpr, train_num_hops, eval_num_hops, seq_length, batch_size, eval_size)
+    trainer = Trainer(env, train_num_hops, eval_num_hops, seq_length, batch_size, eval_size)
     key = jax.random.PRNGKey(0)
     state = trainer.init_train_state(model, key, learning_rate)
     state = trainer.train(state, key, num_iterations, log_every)
@@ -341,185 +354,29 @@ def run_augmented_transformer_exp(
 
 
 if __name__ == "__main__":
-    # Selected difficulties: [5-150, 10-300, 20-600]
+    # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
+    # Selected Cycle difficulties: [3-50]
     run_augmented_transformer_exp(
-        train_num_hops=10,
-        eval_num_hops=[3, 7],
-        seq_length=300,
+        env_name="Cycle",
+        train_num_hops=3,
+        eval_num_hops=[2, 3, 4],
+        seq_length=50,
         batch_size=256,
+        log_every=50,
         encoder_num_repeat_model=0,
         cot_module=False,
         decoder_num_layers=1,
-        num_iterations=20_000,
-        run_name="diff: 10-300, num_layers: 1, AugT",
+        num_iterations=5_000,
+        run_name="Cycle 3-50, AT1",
     )
-    run_augmented_transformer_exp(
-        train_num_hops=10,
-        eval_num_hops=[3, 7],
-        seq_length=300,
+    run_transformer_exp(
+        env_name="Cycle",
+        train_num_hops=3,
+        eval_num_hops=[2, 3, 4],
+        seq_length=50,
         batch_size=256,
-        encoder_num_repeat_model=0,
-        cot_module=False,
-        decoder_num_layers=2,
-        num_iterations=20_000,
-        run_name="diff: 10-300, num_layers: 2, AugT",
+        log_every=50,
+        num_layers=1,
+        num_iterations=5_000,
+        run_name="Cycle 3-50, T1",
     )
-    run_augmented_transformer_exp(
-        train_num_hops=10,
-        eval_num_hops=[3, 7],
-        seq_length=300,
-        batch_size=256,
-        encoder_num_repeat_model=0,
-        cot_module=False,
-        decoder_num_layers=3,
-        num_iterations=20_000,
-        run_name="diff: 10-300, num_layers: 3, AugT",
-    )
-    run_augmented_transformer_exp(
-        train_num_hops=10,
-        eval_num_hops=[3, 7],
-        seq_length=300,
-        batch_size=256,
-        encoder_num_repeat_model=0,
-        cot_module=False,
-        decoder_num_layers=1,
-        decoder_num_repeat_model=2,
-        num_iterations=20_000,
-        run_name="diff: 10-300, num_layers: 1-2, AugT",
-    )
-    run_augmented_transformer_exp(
-        train_num_hops=10,
-        eval_num_hops=[3, 7],
-        seq_length=300,
-        batch_size=256,
-        encoder_num_repeat_model=0,
-        cot_module=False,
-        decoder_num_layers=1,
-        decoder_num_repeat_model=3,
-        num_iterations=20_000,
-        run_name="diff: 10-300, num_layers: 1-3, AugT",
-    )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=1,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 1",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=2,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 2",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=3,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 3",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=4,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 4",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=6,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 6",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=9,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 9",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=1,
-    #     num_repeat_model=2,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 1-2",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=1,
-    #     num_repeat_model=3,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 1-3",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=1,
-    #     num_repeat_model=4,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 1-4",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=1,
-    #     num_repeat_model=6,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 1-6",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=2,
-    #     num_repeat_model=2,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 2-2",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=2,
-    #     num_repeat_model=3,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 2-3",
-    # )
-    # run_transformer_exp(
-    #     train_num_hops=10,
-    #     eval_num_hops=[3, 7],
-    #     seq_length=300,
-    #     batch_size=256,
-    #     num_layers=3,
-    #     num_repeat_model=2,
-    #     num_iterations=20_000,
-    #     run_name="diff: 10-300, num_layers: 3-2",
-    # )
