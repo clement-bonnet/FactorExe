@@ -4,8 +4,10 @@ import chex
 import jax
 import jax.numpy as jnp
 
+from c_vpr.env import Env
 
-class Cycle:
+
+class Cycle(Env):
     """Permutation without fixed point (aka derangement) and only one cycle."""
 
     def __init__(self, input_length: int = 100) -> None:

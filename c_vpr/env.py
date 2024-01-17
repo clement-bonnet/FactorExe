@@ -1,3 +1,4 @@
+import abc
 from typing import Union
 
 import chex
@@ -5,7 +6,19 @@ import jax
 import jax.numpy as jnp
 
 
-class C_VPR:  # noqa: N801
+class Env(abc.ABC):
+    @abc.abstractmethod
+    def sample_n_hops(
+        self,
+        key: chex.PRNGKey,
+        num_hops: int,
+        return_cot: bool = False,
+        return_target: bool = False,
+    ) -> Union[chex.Array, tuple[chex.Array, ...]]:
+        pass
+
+
+class C_VPR(Env):  # noqa: N801
     """Conditional Pointer Value Retrieval from adaptivity and modularity for efficient generalization
     over task complexity [Abnar et al., 2023].
     """
