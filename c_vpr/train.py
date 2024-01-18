@@ -155,13 +155,15 @@ class Trainer:
         )
 
         def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
+            drop_key1, drop_key2, drop_key3, drop_key4 = jax.random.split(dropout_key, 4)
+
             # Encoding
             encoder_embeddings = state.apply_fn(
                 variables={"params": params},
                 inputs=examples,
                 deterministic=False,
                 pad_mask=None,
-                rngs={"dropout": dropout_key},
+                rngs={"dropout": drop_key1},
                 method=self.model.encode,
             )
 
@@ -182,7 +184,7 @@ class Trainer:
                 ),
                 deterministic=False,
                 pad_mask=None,
-                rngs={"dropout": dropout_key},
+                rngs={"dropout": drop_key2},
                 method=self.model.generate_cot_logits_from_encoder_embeddings,
             )
             cot_loss = self.cross_entropy_loss(logits=cot_logits, labels=cot_labels)
@@ -193,9 +195,11 @@ class Trainer:
                     deterministic=False,
                     cot_key=cot_key,
                     pad_mask=None,
-                    rngs={"dropout": dropout_key},
+                    rngs={"dropout": drop_key3},
                     method=self.model.cot_module_call,
                 )
+            else:
+                cot_tokens = cots  # Remove the start token
 
             # Decoding
             logits = state.apply_fn(
@@ -205,7 +209,7 @@ class Trainer:
                 deterministic=False,
                 encoder_pad_mask=None,
                 cot_pad_mask=None,
-                rngs={"dropout": dropout_key},
+                rngs={"dropout": drop_key4},
                 method=self.model.decode,
             )
             supervised_loss = self.cross_entropy_loss(logits=logits, labels=labels)

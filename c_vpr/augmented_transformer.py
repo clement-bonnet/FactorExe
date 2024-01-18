@@ -307,12 +307,12 @@ class Decoder(nn.Module):
             assert cot_tokens.ndim == 2  # (B, T_C)
             assert self.cot_module_config is not None
             tok_embed = nn.Embed(
-                num_embeddings=self.cot_module_config.cot_vocab_size + 1,
+                num_embeddings=self.cot_module_config.cot_vocab_size,
                 features=self.config.emb_dim,
                 name="cot_tok_embed",
             )(cot_tokens)
             pos_embed = nn.Embed(
-                num_embeddings=self.cot_module_config.cot_seq_length + 1,
+                num_embeddings=self.cot_module_config.cot_seq_length,
                 features=self.config.emb_dim,
                 name="cot_pos_embed",
             )(jnp.arange(self.cot_module_config.cot_seq_length))
