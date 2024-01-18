@@ -40,6 +40,7 @@ class Trainer:
         eval_size: int,
         cot_start_token: Optional[int] = None,
         cot_loss_weight_mixing: float = 1.0,
+        cot_stop_gradient_encoder: bool = True,
     ) -> None:
         self.model = model
         self.env = env
@@ -167,7 +168,6 @@ class Trainer:
             cot_labels = jnp.concatenate(
                 [cots, jnp.full((cots.shape[0], 1), self.cot_start_token)], axis=1
             )
-            # TODO: potentially use stop_gradient on the encoder embeddings (to investigate).
             encoder_embeddings = state.apply_fn(
                 variables={"params": params},
                 inputs=examples,
@@ -176,7 +176,8 @@ class Trainer:
                 rngs={"dropout": dropout_key},
                 method=self.model.encode,
             )
-            encoder_embeddings = jax.lax.stop_gradient(encoder_embeddings)
+            if self.cot_stop_gradient_encoder:
+                encoder_embeddings = jax.lax.stop_gradient(encoder_embeddings)
             cot_logits = state.apply_fn(
                 variables={"params": params},
                 cot_tokens=cot_tokens,
@@ -383,7 +384,9 @@ def run_augmented_transformer_exp(
     emb_dim: int = 384,
     mlp_dim_factor: float = 4,
     all_dropouts_rate: float = 0.0,
-    learning_rate: float = 5e-4,
+    cot_loss_weight_mixing: float = 1.0,
+    cot_stop_gradient_encoder: bool = True,
+    learning_rate: float = 3e-4,
     num_iterations: int = 100_000,
     batch_size: int = 512,
     eval_size: int = 500,
@@ -482,6 +485,8 @@ def run_augmented_transformer_exp(
         batch_size,
         eval_size,
         cot_start_token=cot_module_config.cot_vocab_size if cot_module_config else None,
+        cot_loss_weight_mixing=cot_loss_weight_mixing,
+        cot_stop_gradient_encoder=cot_stop_gradient_encoder,
     )
     key = jax.random.PRNGKey(0)
     state = trainer.init_train_state(key, learning_rate)
@@ -508,7 +513,7 @@ if __name__ == "__main__":
         decoder_num_layers=2,
         batch_size=256,
         log_every=100,
-        num_iterations=10_000,
+        num_iterations=20_000,
         run_name="Cycle 2-40, AT(0, 1, 2) COT",
     )
     # run_augmented_transformer_exp(
