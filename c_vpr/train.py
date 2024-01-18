@@ -513,7 +513,7 @@ if __name__ == "__main__":
         decoder_num_layers=2,
         batch_size=256,
         log_every=100,
-        num_iterations=20_000,
+        num_iterations=30_000,
         run_name="Cycle 2-40, AT(0, 1, 2) COT",
     )
     # run_augmented_transformer_exp(
