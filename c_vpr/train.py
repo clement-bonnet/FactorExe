@@ -272,7 +272,13 @@ class Trainer:
     def save_checkpoint(self, ckpt_path: str, state: TrainState, iteration: int) -> None:
         with open(ckpt_path, "wb") as outfile:
             outfile.write(msgpack_serialize(to_state_dict(state)))
-        run_name = wandb.run.name.replace(",", "").replace(":", "").replace(" ", "")
+        run_name = (
+            wandb.run.name.replace(",", ".")
+            .replace(":", "")
+            .replace(" ", "")
+            .replace("(", "_")
+            .replace(")", "_")
+        )
         artifact = wandb.Artifact(f"{run_name}--checkpoint", type="model")
         artifact.add_file(ckpt_path)
         wandb.log_artifact(artifact, aliases=["latest", f"iteration_{iteration}"])
@@ -502,7 +508,7 @@ if __name__ == "__main__":
         decoder_num_repeat_model=0,
         batch_size=256,
         log_every=100,
-        num_iterations=10_000,
+        num_iterations=100,
         run_name="Cycle 2-40, AT(0, 1, 0) COT",
     )
     # run_augmented_transformer_exp(
