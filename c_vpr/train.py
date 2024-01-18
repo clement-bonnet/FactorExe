@@ -505,11 +505,11 @@ if __name__ == "__main__":
         cot_seq_length=2,
         cot_num_layers=1,
         cot_num_repeat_model=1,
-        decoder_num_repeat_model=0,
+        decoder_num_repeat_model=1,
         batch_size=256,
         log_every=100,
         num_iterations=10_000,
-        run_name="Cycle 2-40, AT(0, 1, 0) COT",
+        run_name="Cycle 2-40, AT(0, 1, 1) COT",
     )
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
