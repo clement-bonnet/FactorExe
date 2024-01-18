@@ -264,7 +264,7 @@ class CoTModule(nn.Module):
         x = self.tok_dropout(x, deterministic=deterministic)
         bs, t, _ = x.shape
         causal_mask = jnp.tril(
-            jnp.ones((bs, t, t), bool)
+            jnp.ones((bs, 1, t, t), bool)
         )  # TODO: check if this is correct
 
         for _ in range(self.cross_transformer_config.num_repeat_model):
@@ -367,6 +367,33 @@ class AugmentedTransformer(nn.Module):
         )
         self.decoder = Decoder(self.decoder_config, self.cot_module_config)
 
+    def encode(
+        self,
+        *,
+        inputs: chex.Array,
+        deterministic: bool,
+        pad_mask: Optional[chex.Array] = None,
+    ) -> chex.Array:
+        return self.encoder(
+            inputs=inputs, deterministic=deterministic, pad_mask=pad_mask
+        )
+
+    def generate_cot_logits_from_encoder_embeddings(
+        self,
+        *,
+        cot_tokens: chex.Array,
+        encoder_embeddings: chex.Array,
+        deterministic: bool,
+        pad_mask: Optional[chex.Array] = None,
+    ) -> chex.Array:
+        assert isinstance(self.cot_module, CoTModule)
+        return self.cot_module.generate_logits(
+            cot_tokens=cot_tokens,
+            encoder_embeddings=encoder_embeddings,
+            deterministic=deterministic,
+            pad_mask=pad_mask,
+        )
+
     @nn.compact
     def __call__(
         self,
@@ -421,7 +448,7 @@ if __name__ == "__main__":
         num_heads=6,
         num_layers=1,
         num_repeat_model=0,
-        mlp_dim_factror=4,
+        mlp_dim_factor=4,
         max_len=seq_length,
         dropout_rate=0.1,
         attention_dropout_rate=0.1,
@@ -435,7 +462,7 @@ if __name__ == "__main__":
             num_heads=6,
             num_layers=1,
             num_repeat_model=1,
-            mlp_dim_factror=4,
+            mlp_dim_factor=4,
             max_len=None,
             dropout_rate=0.1,
             attention_dropout_rate=0.1,
@@ -451,7 +478,7 @@ if __name__ == "__main__":
         num_heads=6,
         num_layers=2,
         num_repeat_model=1,
-        mlp_dim_factror=4,
+        mlp_dim_factor=4,
         max_len=seq_length,
         dropout_rate=0.1,
         attention_dropout_rate=0.1,
