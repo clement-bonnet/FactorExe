@@ -176,6 +176,7 @@ class Trainer:
                 rngs={"dropout": dropout_key},
                 method=self.model.encode,
             )
+            encoder_embeddings = jax.lax.stop_gradient(encoder_embeddings)
             cot_logits = state.apply_fn(
                 variables={"params": params},
                 cot_tokens=cot_tokens,
