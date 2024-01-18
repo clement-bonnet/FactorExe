@@ -189,15 +189,13 @@ class Trainer:
             cot_loss = self.cross_entropy_loss(logits=cot_logits, labels=cot_labels)
 
             loss = supervised_loss + self.cot_loss_weight_mixing * cot_loss
-            return loss, (logits, supervised_loss, cot_loss)
+            return loss, (logits, cot_loss)
 
-        grads, (logits, supervised_loss, cot_loss) = jax.grad(loss_fn, has_aux=True)(
-            state.params, dropout_key
-        )
+        grads, (logits, cot_loss) = jax.grad(loss_fn, has_aux=True)(state.params, dropout_key)
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
         grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
-        metrics.update(grad_norm=grad_norm, supervised_loss=supervised_loss, cot_loss=cot_loss)
+        metrics.update(grad_norm=grad_norm, cot_loss=cot_loss)
         return state, metrics
 
     def train_epoch(
@@ -507,10 +505,11 @@ if __name__ == "__main__":
         cot_num_layers=1,
         cot_num_repeat_model=1,
         decoder_num_repeat_model=1,
+        decoder_num_layers=2,
         batch_size=256,
         log_every=100,
         num_iterations=10_000,
-        run_name="Cycle 2-40, AT(0, 1, 1) COT",
+        run_name="Cycle 2-40, AT(0, 1, 2) COT",
     )
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
