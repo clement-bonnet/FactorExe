@@ -129,12 +129,8 @@ class CrossTransformerLayer(nn.Module):
 
         # Cross-attention block.
         if cross_embeddings is not None:
-            inputs_q = nn.LayerNorm(dtype=config.dtype, use_bias=config.use_bias)(
-                self_embeddings
-            )
-            inputs_kv = nn.LayerNorm(dtype=config.dtype, use_bias=config.use_bias)(
-                cross_embeddings
-            )
+            inputs_q = nn.LayerNorm(dtype=config.dtype, use_bias=config.use_bias)(self_embeddings)
+            inputs_kv = nn.LayerNorm(dtype=config.dtype, use_bias=config.use_bias)(cross_embeddings)
             x = nn.MultiHeadDotProductAttention(
                 num_heads=config.num_heads,
                 dtype=config.dtype,
@@ -146,9 +142,7 @@ class CrossTransformerLayer(nn.Module):
                 mask=cross_pad_mask,
                 deterministic=deterministic,
             )
-            residuals = nn.Dropout(rate=config.dropout_rate)(
-                x, deterministic=deterministic
-            )
+            residuals = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
             self_embeddings = self_embeddings + residuals
 
         # MLP block.
@@ -163,8 +157,7 @@ class CoTModule(nn.Module):
     def setup(self) -> None:
         self.cross_transformer_config = self.config.cross_transformer_config
         self.cot_tok_embed = nn.Embed(
-            num_embeddings=self.config.cot_vocab_size
-            + 1,  # +1 for the start token embedding
+            num_embeddings=self.config.cot_vocab_size + 1,  # +1 for the start token embedding
             features=self.cross_transformer_config.emb_dim,
             name="cot_tok_embed",
         )
@@ -213,9 +206,7 @@ class CoTModule(nn.Module):
             ),  # +1 for the start token
             dtype=jnp.int32,
         )
-        cot_tokens = cot_tokens.at[:, 0].set(
-            config.cot_vocab_size
-        )  # set the start token
+        cot_tokens = cot_tokens.at[:, 0].set(config.cot_vocab_size)  # set the start token
 
         logits_list = []
         for i in range(self.config.cot_seq_length):
@@ -263,9 +254,7 @@ class CoTModule(nn.Module):
         x = tok_embed + pos_embed
         x = self.tok_dropout(x, deterministic=deterministic)
         bs, t, _ = x.shape
-        causal_mask = jnp.tril(
-            jnp.ones((bs, 1, t, t), bool)
-        )  # TODO: check if this is correct
+        causal_mask = jnp.tril(jnp.ones((bs, 1, t, t), bool))  # TODO: check if this is correct
 
         for _ in range(self.cross_transformer_config.num_repeat_model):
             for layer in self.cross_transformer_layers:
@@ -346,9 +335,7 @@ class Decoder(nn.Module):
                 )
         x = nn.LayerNorm(dtype=self.config.dtype, use_bias=self.config.use_bias)(x)
         x = x.mean(axis=1)
-        logits = nn.Dense(
-            self.config.output_vocab_size, self.config.use_bias, self.config.dtype
-        )(x)
+        logits = nn.Dense(self.config.output_vocab_size, self.config.use_bias, self.config.dtype)(x)
 
         return logits
 
@@ -362,9 +349,7 @@ class AugmentedTransformer(nn.Module):
 
     def setup(self) -> None:
         self.encoder = Encoder(self.encoder_config)
-        self.cot_module = (
-            CoTModule(self.cot_module_config) if self.cot_module_config else None
-        )
+        self.cot_module = CoTModule(self.cot_module_config) if self.cot_module_config else None
         self.decoder = Decoder(self.decoder_config, self.cot_module_config)
 
     def encode(
@@ -374,9 +359,7 @@ class AugmentedTransformer(nn.Module):
         deterministic: bool,
         pad_mask: Optional[chex.Array] = None,
     ) -> chex.Array:
-        return self.encoder(
-            inputs=inputs, deterministic=deterministic, pad_mask=pad_mask
-        )
+        return self.encoder(inputs=inputs, deterministic=deterministic, pad_mask=pad_mask)
 
     def generate_cot_logits_from_encoder_embeddings(
         self,

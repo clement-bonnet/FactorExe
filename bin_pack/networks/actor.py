@@ -91,9 +91,7 @@ class BinPackTorso(hk.Module):
         embeddings = jnp.concatenate([ems_embeddings, items_embeddings], axis=-2)
 
         # Self-attention mask
-        mask = self._make_self_attention_mask(
-            jnp.concatenate([ems_mask, items_mask], axis=-1)
-        )
+        mask = self._make_self_attention_mask(jnp.concatenate([ems_mask, items_mask], axis=-1))
 
         # Transformer encoder
         for block_id in range(self.num_transformer_layers):
@@ -150,13 +148,9 @@ def make_actor_network_bin_pack(
         )
 
         # EMS projection.
-        ems_embeddings = hk.Linear(torso.model_size, name="ems_projection")(
-            ems_embeddings
-        )
+        ems_embeddings = hk.Linear(torso.model_size, name="ems_projection")(ems_embeddings)
         # Items projection.
-        items_embeddings = hk.Linear(torso.model_size, name="items_projection")(
-            items_embeddings
-        )
+        items_embeddings = hk.Linear(torso.model_size, name="items_projection")(items_embeddings)
 
         # Outer-product between the embeddings to obtain logits.
         logits = jnp.einsum("...ek,...ik->...ei", ems_embeddings, items_embeddings)

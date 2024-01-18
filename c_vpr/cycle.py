@@ -23,9 +23,7 @@ class Cycle(Env):
         return_target: bool = False,
     ) -> tuple[chex.Array, ...]:
         hops_key, sample_key = jax.random.split(key)
-        num_hops = jax.random.randint(
-            hops_key, shape=(), minval=1, maxval=self.input_length
-        )
+        num_hops = jax.random.randint(hops_key, shape=(), minval=1, maxval=self.input_length)
         args = self.sample_n_hops(sample_key, num_hops, return_cot, return_target)
         if isinstance(args, tuple):
             return (num_hops, *args)

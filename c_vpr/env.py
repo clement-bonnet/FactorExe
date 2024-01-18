@@ -61,9 +61,7 @@ class C_VPR(Env):  # noqa: N801
 
         # Resample the last index to make sure it is less or equal than the highest pointer.
         last_index = pointers[-1]
-        target = jax.random.randint(
-            last_index_key, shape=(), minval=0, maxval=last_index + 1
-        )
+        target = jax.random.randint(last_index_key, shape=(), minval=0, maxval=last_index + 1)
         example = example.at[last_index].set(target)
 
         if return_cot:

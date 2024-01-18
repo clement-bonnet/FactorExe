@@ -79,9 +79,7 @@ class VmapAutoResetWrapperBinPackSolution(VmapAutoResetWrapper):
         state, reset_timestep = self._env.reset(key)
 
         # Replace observation with reset observation.
-        timestep.extras.update(
-            bin_pack_solution=reset_timestep.extras["bin_pack_solution"]
-        )
+        timestep.extras.update(bin_pack_solution=reset_timestep.extras["bin_pack_solution"])
         timestep = timestep.replace(  # type: ignore
             observation=reset_timestep.observation,
         )

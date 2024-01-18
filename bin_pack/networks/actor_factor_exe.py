@@ -230,21 +230,15 @@ def make_actor_factor_exe_network_bin_pack(
             factor_vocab_size=factor_vocab_size,
             name="policy_torso",
         )
-        embeddings, factors, factors_logits = hk.vmap(torso, split_rng=False)(
-            observation, key
-        )
+        embeddings, factors, factors_logits = hk.vmap(torso, split_rng=False)(observation, key)
         ems_embeddings, items_embeddings = jnp.split(
             embeddings, (observation.ems_mask.shape[-1],), axis=-2
         )
 
         # EMS projection.
-        ems_embeddings = hk.Linear(torso.model_size, name="ems_projection")(
-            ems_embeddings
-        )
+        ems_embeddings = hk.Linear(torso.model_size, name="ems_projection")(ems_embeddings)
         # Items projection.
-        items_embeddings = hk.Linear(torso.model_size, name="items_projection")(
-            items_embeddings
-        )
+        items_embeddings = hk.Linear(torso.model_size, name="items_projection")(items_embeddings)
 
         # Outer-product between the embeddings to obtain logits.
         logits = jnp.einsum("...ek,...ik->...ei", ems_embeddings, items_embeddings)

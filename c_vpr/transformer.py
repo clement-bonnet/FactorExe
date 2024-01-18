@@ -58,15 +58,13 @@ class MlpBlock(nn.Module):
         """Applies Transformer MlpBlock module."""
         config = self.config
         actual_out_dim = inputs.shape[-1] if self.out_dim is None else self.out_dim
-        x = nn.Dense(
-            int(config.mlp_dim_factor * config.emb_dim), config.use_bias, config.dtype
-        )(inputs)
+        x = nn.Dense(int(config.mlp_dim_factor * config.emb_dim), config.use_bias, config.dtype)(
+            inputs
+        )
         x = self.activation(x)
         x = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
         output = nn.Dense(actual_out_dim, config.use_bias, config.dtype)(x)
-        output = nn.Dropout(rate=config.dropout_rate)(
-            output, deterministic=deterministic
-        )
+        output = nn.Dropout(rate=config.dropout_rate)(output, deterministic=deterministic)
         return output
 
 
@@ -143,9 +141,7 @@ class Transformer(nn.Module):
         config = self.config
 
         x = inputs.astype("int32")
-        x = nn.Embed(
-            num_embeddings=config.vocab_size, features=config.emb_dim, name="tok_embed"
-        )(x)
+        x = nn.Embed(num_embeddings=config.vocab_size, features=config.emb_dim, name="tok_embed")(x)
         pos_embed = nn.Embed(
             num_embeddings=config.max_len, features=config.emb_dim, name="pos_embed"
         )(jnp.arange(config.max_len))
@@ -183,6 +179,4 @@ if __name__ == "__main__":
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(params))
     print("Number of parameters: {:,}".format(num_params))
     apply_fn = jax.jit(model.apply, static_argnames="deterministic")
-    output = apply_fn(
-        params, inputs=example, deterministic=False, rngs={"dropout": key}
-    )
+    output = apply_fn(params, inputs=example, deterministic=False, rngs={"dropout": key})

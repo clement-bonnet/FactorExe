@@ -104,9 +104,7 @@ class Evaluator:
             # action, _ = target_policy(observation, bin_pack_solution, keys)
             # ###
 
-            state, timestep = self.eval_env.step(
-                acting_state.state, jnp.squeeze(action, axis=0)
-            )
+            state, timestep = self.eval_env.step(acting_state.state, jnp.squeeze(action, axis=0))
             return_ += timestep.reward
             acting_state = ActingState(
                 state=state,
@@ -167,9 +165,7 @@ class Evaluator:
 
         return eval_metrics
 
-    def run_evaluation(
-        self, params_state: Optional[ParamsState], eval_key: chex.PRNGKey
-    ) -> Dict:
+    def run_evaluation(self, params_state: Optional[ParamsState], eval_key: chex.PRNGKey) -> Dict:
         """Run one batch of evaluations."""
         eval_keys = jax.random.split(eval_key, self.num_global_devices).reshape(
             self.num_workers, self.num_local_devices, -1

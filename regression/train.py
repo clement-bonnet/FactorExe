@@ -22,9 +22,7 @@ def run(with_factor: bool, num_runs: int = 1, seed: int = 0):
             """Compute the gradient for a batch and update the parameters."""
 
             def loss_fn(params, x, y, key):
-                y_pred, factor_log_prob = jax.vmap(net.forward, (None, 0, None))(
-                    params, x, key
-                )
+                y_pred, factor_log_prob = jax.vmap(net.forward, (None, 0, None))(params, x, key)
                 losses = (y - y_pred) ** 2
                 mse_loss = jnp.mean(losses)
                 loss = mse_loss

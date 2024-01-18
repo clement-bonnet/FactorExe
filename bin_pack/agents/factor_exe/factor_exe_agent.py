@@ -69,9 +69,7 @@ class FactorExeAgent(Agent):
             lambda x: x[None, ...], self.observation_spec.generate_value()
         )  # Add batch dim
         keys = jax.random.split(key, 1)
-        params = self.actor_factor_exe_networks.policy_network.init(
-            key, dummy_obs, keys
-        )
+        params = self.actor_factor_exe_networks.policy_network.init(key, dummy_obs, keys)
         opt_state = self.optimizer.init(params)
         params_state = ParamsState(
             params=params,
@@ -91,9 +89,7 @@ class FactorExeAgent(Agent):
             training_state.acting_state,
         )
         grad, metrics = jax.lax.pmean((grad, metrics), "devices")
-        updates, opt_state = self.optimizer.update(
-            grad, training_state.params_state.opt_state
-        )
+        updates, opt_state = self.optimizer.update(grad, training_state.params_state.opt_state)
         params = optax.apply_updates(training_state.params_state.params, updates)
         training_state = TrainingState(
             params_state=ParamsState(
@@ -118,9 +114,7 @@ class FactorExeAgent(Agent):
         key, entropy_key = jax.random.split(acting_state.key, 2)
         keys = jax.random.split(
             key, self.reinforce_estimators * self.n_steps * self.batch_size_per_device
-        ).reshape(
-            self.reinforce_estimators, self.n_steps, self.batch_size_per_device, -1
-        )
+        ).reshape(self.reinforce_estimators, self.n_steps, self.batch_size_per_device, -1)
 
         logits, factors, factors_logits = jax.vmap(
             jax.vmap(
@@ -148,9 +142,7 @@ class FactorExeAgent(Agent):
             kl_loss = jnp.mean(kl_losses[0])
         elif self.kl_loss_which_factor == "best":
             best_indices = jnp.argmin(kl_losses, axis=0)
-            kl_loss = jnp.mean(
-                jnp.take_along_axis(kl_losses, best_indices[None], axis=0)
-            )
+            kl_loss = jnp.mean(jnp.take_along_axis(kl_losses, best_indices[None], axis=0))
         else:
             raise ValueError
 
@@ -166,9 +158,7 @@ class FactorExeAgent(Agent):
         p = x / (len(factors[0].reshape(-1)))
         factors_empirical_entropy = -jnp.sum(jnp.where(p == 0, 0.0, p * jnp.log(p)))
 
-        reinforce_losses = (
-            jax.lax.stop_gradient(kl_losses)[..., None] * factors_log_prob
-        )
+        reinforce_losses = jax.lax.stop_gradient(kl_losses)[..., None] * factors_log_prob
         # Sum over factors (i.e. "episodes")
         reinforce_losses = jnp.sum(reinforce_losses, axis=-1)
         factors_entropies = CategoricalDistribution(factors_logits).entropy()
@@ -179,9 +169,7 @@ class FactorExeAgent(Agent):
             factors_entropies = factors_entropies[0]
         elif self.reinforce_which_factor == "best":
             best_indices = jnp.argmin(kl_losses, axis=0)
-            reinforce_losses = jnp.take_along_axis(
-                reinforce_losses, best_indices[None], axis=0
-            )
+            reinforce_losses = jnp.take_along_axis(reinforce_losses, best_indices[None], axis=0)
             factors_entropies = jnp.take_along_axis(
                 factors_entropies, best_indices[None, ..., None], axis=0
             )
@@ -219,9 +207,7 @@ class FactorExeAgent(Agent):
         self,
         params: hk.Params,
         stochastic: bool = True,
-    ) -> Callable[
-        [Any, chex.PRNGKey], Tuple[chex.Array, Tuple[chex.Array, chex.Array]]
-    ]:
+    ) -> Callable[[Any, chex.PRNGKey], Tuple[chex.Array, Tuple[chex.Array, chex.Array]]]:
         policy_network = self.actor_factor_exe_networks.policy_network
         parametric_action_distribution = (
             self.actor_factor_exe_networks.parametric_action_distribution
@@ -232,21 +218,15 @@ class FactorExeAgent(Agent):
             observation: Any, key: chex.PRNGKey
         ) -> Tuple[chex.Array, Tuple[chex.Array, chex.Array]]:
             forward_key, key = jax.random.split(key)
-            observation, forward_key = jax.tree_map(
-                lambda x: x[None], (observation, forward_key)
-            )
+            observation, forward_key = jax.tree_map(lambda x: x[None], (observation, forward_key))
             logits, *_ = policy_network.apply(params, observation, forward_key)
             logits = jnp.squeeze(logits, axis=0)
             if stochastic:
-                raw_action = parametric_action_distribution.sample_no_postprocessing(
-                    logits, key
-                )
+                raw_action = parametric_action_distribution.sample_no_postprocessing(logits, key)
                 log_prob = parametric_action_distribution.log_prob(logits, raw_action)
             else:
                 del key
-                raw_action = parametric_action_distribution.mode_no_postprocessing(
-                    logits
-                )
+                raw_action = parametric_action_distribution.mode_no_postprocessing(logits)
                 # log_prob is log(1), i.e. 0, for a greedy policy (deterministic distribution).
                 log_prob = jnp.zeros_like(
                     parametric_action_distribution.log_prob(logits, raw_action)
@@ -275,9 +255,7 @@ class FactorExeAgent(Agent):
         ) -> Tuple[chex.Array, Tuple[chex.Array, chex.Array]]:
             def unnormalize_obs_ems(obs_ems: Space, container: Space) -> Space:
                 x_len, y_len, z_len = item_from_space(container)
-                norm_space = Space(
-                    x1=x_len, x2=x_len, y1=y_len, y2=y_len, z1=z_len, z2=z_len
-                )
+                norm_space = Space(x1=x_len, x2=x_len, y1=y_len, y2=y_len, z1=z_len, z2=z_len)
                 obs_ems: Space = jax.tree_util.tree_map(
                     lambda x, c: jnp.round(x * c).astype(jnp.int32),
                     obs_ems,
@@ -285,9 +263,7 @@ class FactorExeAgent(Agent):
                 )
                 return obs_ems
 
-            def is_optimal_action(
-                ems: EMS, solution_item_location: Location
-            ) -> chex.Array:
+            def is_optimal_action(ems: EMS, solution_item_location: Location) -> chex.Array:
                 ems = unnormalize_obs_ems(ems, bin_pack_solution.container)
                 ems_location = location_from_space(ems)
                 return (
@@ -297,9 +273,9 @@ class FactorExeAgent(Agent):
                 )
 
             actions_are_optimal = (
-                jax.vmap(
-                    jax.vmap(is_optimal_action, in_axes=(None, 0)), in_axes=(0, None)
-                )(observation.ems, bin_pack_solution.items_location)
+                jax.vmap(jax.vmap(is_optimal_action, in_axes=(None, 0)), in_axes=(0, None))(
+                    observation.ems, bin_pack_solution.items_location
+                )
                 & observation.action_mask
             )
 
@@ -307,15 +283,11 @@ class FactorExeAgent(Agent):
             logits = logits.reshape(*logits.shape[:-2], -1)
 
             if stochastic:
-                raw_action = parametric_action_distribution.sample_no_postprocessing(
-                    logits, key
-                )
+                raw_action = parametric_action_distribution.sample_no_postprocessing(logits, key)
                 log_prob = parametric_action_distribution.log_prob(logits, raw_action)
             else:
                 del key
-                raw_action = parametric_action_distribution.mode_no_postprocessing(
-                    logits
-                )
+                raw_action = parametric_action_distribution.mode_no_postprocessing(logits)
                 # log_prob is log(1), i.e. 0, for a greedy policy (deterministic distribution).
                 log_prob = jnp.zeros_like(
                     parametric_action_distribution.log_prob(logits, raw_action)
@@ -366,8 +338,6 @@ class FactorExeAgent(Agent):
 
             return acting_state, transition
 
-        acting_keys = jax.random.split(acting_state.key, self.n_steps).reshape(
-            (self.n_steps, -1)
-        )
+        acting_keys = jax.random.split(acting_state.key, self.n_steps).reshape((self.n_steps, -1))
         acting_state, data = jax.lax.scan(run_one_step, acting_state, acting_keys)
         return acting_state, data

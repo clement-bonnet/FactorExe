@@ -76,9 +76,7 @@ class PDAgent(Agent):
             training_state.acting_state,
         )
         grad, metrics = jax.lax.pmean((grad, metrics), "devices")
-        updates, opt_state = self.optimizer.update(
-            grad, training_state.params_state.opt_state
-        )
+        updates, opt_state = self.optimizer.update(grad, training_state.params_state.opt_state)
         params = optax.apply_updates(training_state.params_state.params, updates)
         training_state = TrainingState(
             params_state=ParamsState(
@@ -95,9 +93,7 @@ class PDAgent(Agent):
         params: hk.Params,
         acting_state: ActingState,
     ) -> Tuple[float, Tuple[ActingState, Dict]]:
-        parametric_action_distribution = (
-            self.actor_networks.parametric_action_distribution
-        )
+        parametric_action_distribution = self.actor_networks.parametric_action_distribution
 
         acting_state, data = self.rollout(acting_state)  # [T, B, ...]
         logits = jax.vmap(self.actor_networks.policy_network.apply, in_axes=(None, 0))(
@@ -105,9 +101,7 @@ class PDAgent(Agent):
         )
 
         # Compute the entropy.
-        entropy = jnp.mean(
-            parametric_action_distribution.entropy(logits, acting_state.key)
-        )
+        entropy = jnp.mean(parametric_action_distribution.entropy(logits, acting_state.key))
         target_entropy = jnp.mean(
             parametric_action_distribution.entropy(data.target_logits, acting_state.key)
         )
@@ -135,13 +129,9 @@ class PDAgent(Agent):
         self,
         params: hk.Params,
         stochastic: bool = True,
-    ) -> Callable[
-        [Any, chex.PRNGKey], Tuple[chex.Array, Tuple[chex.Array, chex.Array]]
-    ]:
+    ) -> Callable[[Any, chex.PRNGKey], Tuple[chex.Array, Tuple[chex.Array, chex.Array]]]:
         policy_network = self.actor_networks.policy_network
-        parametric_action_distribution = (
-            self.actor_networks.parametric_action_distribution
-        )
+        parametric_action_distribution = self.actor_networks.parametric_action_distribution
 
         @jax.vmap
         def policy(
@@ -149,15 +139,11 @@ class PDAgent(Agent):
         ) -> Tuple[chex.Array, Tuple[chex.Array, chex.Array]]:
             logits = policy_network.apply(params, observation)
             if stochastic:
-                raw_action = parametric_action_distribution.sample_no_postprocessing(
-                    logits, key
-                )
+                raw_action = parametric_action_distribution.sample_no_postprocessing(logits, key)
                 log_prob = parametric_action_distribution.log_prob(logits, raw_action)
             else:
                 del key
-                raw_action = parametric_action_distribution.mode_no_postprocessing(
-                    logits
-                )
+                raw_action = parametric_action_distribution.mode_no_postprocessing(logits)
                 # log_prob is log(1), i.e. 0, for a greedy policy (deterministic distribution).
                 log_prob = jnp.zeros_like(
                     parametric_action_distribution.log_prob(logits, raw_action)
@@ -174,9 +160,7 @@ class PDAgent(Agent):
         [Any, BinPackState, chex.PRNGKey],
         Tuple[chex.Array, Tuple[chex.Array, chex.Array]],
     ]:
-        parametric_action_distribution = (
-            self.actor_networks.parametric_action_distribution
-        )
+        parametric_action_distribution = self.actor_networks.parametric_action_distribution
 
         @jax.vmap
         def policy(
@@ -186,9 +170,7 @@ class PDAgent(Agent):
         ) -> Tuple[chex.Array, Tuple[chex.Array, chex.Array]]:
             def unnormalize_obs_ems(obs_ems: Space, container: Space) -> Space:
                 x_len, y_len, z_len = item_from_space(container)
-                norm_space = Space(
-                    x1=x_len, x2=x_len, y1=y_len, y2=y_len, z1=z_len, z2=z_len
-                )
+                norm_space = Space(x1=x_len, x2=x_len, y1=y_len, y2=y_len, z1=z_len, z2=z_len)
                 obs_ems: Space = jax.tree_util.tree_map(
                     lambda x, c: jnp.round(x * c).astype(jnp.int32),
                     obs_ems,
@@ -196,9 +178,7 @@ class PDAgent(Agent):
                 )
                 return obs_ems
 
-            def is_optimal_action(
-                ems: EMS, solution_item_location: Location
-            ) -> chex.Array:
+            def is_optimal_action(ems: EMS, solution_item_location: Location) -> chex.Array:
                 ems = unnormalize_obs_ems(ems, bin_pack_solution.container)
                 ems_location = location_from_space(ems)
                 return (
@@ -208,9 +188,9 @@ class PDAgent(Agent):
                 )
 
             actions_are_optimal = (
-                jax.vmap(
-                    jax.vmap(is_optimal_action, in_axes=(None, 0)), in_axes=(0, None)
-                )(observation.ems, bin_pack_solution.items_location)
+                jax.vmap(jax.vmap(is_optimal_action, in_axes=(None, 0)), in_axes=(0, None))(
+                    observation.ems, bin_pack_solution.items_location
+                )
                 & observation.action_mask
             )
 
@@ -218,15 +198,11 @@ class PDAgent(Agent):
             logits = logits.reshape(*logits.shape[:-2], -1)
 
             if stochastic:
-                raw_action = parametric_action_distribution.sample_no_postprocessing(
-                    logits, key
-                )
+                raw_action = parametric_action_distribution.sample_no_postprocessing(logits, key)
                 log_prob = parametric_action_distribution.log_prob(logits, raw_action)
             else:
                 del key
-                raw_action = parametric_action_distribution.mode_no_postprocessing(
-                    logits
-                )
+                raw_action = parametric_action_distribution.mode_no_postprocessing(logits)
                 # log_prob is log(1), i.e. 0, for a greedy policy (deterministic distribution).
                 log_prob = jnp.zeros_like(
                     parametric_action_distribution.log_prob(logits, raw_action)
@@ -277,8 +253,6 @@ class PDAgent(Agent):
 
             return acting_state, transition
 
-        acting_keys = jax.random.split(acting_state.key, self.n_steps).reshape(
-            (self.n_steps, -1)
-        )
+        acting_keys = jax.random.split(acting_state.key, self.n_steps).reshape((self.n_steps, -1))
         acting_state, data = jax.lax.scan(run_one_step, acting_state, acting_keys)
         return acting_state, data

@@ -54,9 +54,7 @@ def train(cfg: omegaconf.DictConfig, log_compiles: bool = False) -> None:
         cfg.env.training.n_steps * agent.total_batch_size * num_learner_steps_per_epoch
     )
     eval_timer = Timer(out_var_name="metrics")
-    train_timer = Timer(
-        out_var_name="metrics", num_steps_per_timing=num_steps_per_epoch
-    )
+    train_timer = Timer(out_var_name="metrics", num_steps_per_timing=num_steps_per_epoch)
 
     @functools.partial(jax.pmap, axis_name="devices", donate_argnums=0)
     def epoch_fn(training_state: TrainingState) -> Tuple[TrainingState, Dict]:

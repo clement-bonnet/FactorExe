@@ -29,9 +29,9 @@ def test__c_vpr_sample_n_hops(cycle: Cycle) -> None:
     assert isinstance(seq1, chex.Array)
     seq2 = cycle.sample_n_hops(key2, num_hops)
     assert not jnp.array_equal(seq1, seq2)
-    sequence, target = jax.jit(
-        cycle.sample_n_hops, static_argnames=("num_hops", "return_target")
-    )(key, num_hops, return_target=True)
+    sequence, target = jax.jit(cycle.sample_n_hops, static_argnames=("num_hops", "return_target"))(
+        key, num_hops, return_target=True
+    )
     assert target.shape == ()
     assert jnp.isin(target, sequence)
 

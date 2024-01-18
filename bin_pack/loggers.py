@@ -25,9 +25,7 @@ from neptune import new as neptune
 class TerminalLogger(Logger):
     """Logs to terminal."""
 
-    def __init__(
-        self, name: Optional[str] = None, save_checkpoint: bool = False
-    ) -> None:
+    def __init__(self, name: Optional[str] = None, save_checkpoint: bool = False) -> None:
         super().__init__(save_checkpoint=save_checkpoint)
         if name:
             logging.info(f"Experiment: {name}.")
@@ -93,6 +91,4 @@ class NeptuneLogger(Logger):
         self.run.stop()
 
     def upload_checkpoint(self) -> None:
-        self.run[f"checkpoint/{self.checkpoint_file_name}"].upload(
-            self.checkpoint_file_name
-        )
+        self.run[f"checkpoint/{self.checkpoint_file_name}"].upload(self.checkpoint_file_name)

@@ -47,9 +47,7 @@ def setup_logger(cfg: DictConfig) -> Logger:
     if jax.process_index() != 0:
         return NoOpLogger()
     if cfg.logger.type == "tensorboard":
-        logger = TensorboardLogger(
-            name=cfg.logger.name, save_checkpoint=cfg.logger.save_checkpoint
-        )
+        logger = TensorboardLogger(name=cfg.logger.name, save_checkpoint=cfg.logger.save_checkpoint)
     elif cfg.logger.type == "neptune":
         logger = NeptuneLogger(
             name=cfg.logger.name,
@@ -58,9 +56,7 @@ def setup_logger(cfg: DictConfig) -> Logger:
             save_checkpoint=cfg.logger.save_checkpoint,
         )
     elif cfg.logger.type == "terminal":
-        logger = TerminalLogger(
-            name=cfg.logger.name, save_checkpoint=cfg.logger.save_checkpoint
-        )
+        logger = TerminalLogger(name=cfg.logger.name, save_checkpoint=cfg.logger.save_checkpoint)
     else:
         raise ValueError(
             f"logger expected in ['neptune', 'tensorboard', 'terminal'], got {cfg.logger}."
@@ -75,9 +71,7 @@ def _make_raw_env(cfg: DictConfig) -> Environment:
         max_num_ems=cfg.env.kwargs.max_num_ems,
         split_num_same_items=cfg.env.kwargs.split_num_same_items,
     )
-    env = BinPackSolutionWrapper(
-        generator=generator, obs_num_ems=cfg.env.kwargs.obs_num_ems
-    )
+    env = BinPackSolutionWrapper(generator=generator, obs_num_ems=cfg.env.kwargs.obs_num_ems)
     return env
 
 
@@ -162,9 +156,7 @@ def _setup_actor_neworks(cfg: DictConfig, env: Environment) -> ActorNetworks:
     return actor_networks
 
 
-def _setup_actor_factor_exe_neworks(
-    cfg: DictConfig, env: Environment
-) -> ActorFactorExeNetworks:
+def _setup_actor_factor_exe_neworks(cfg: DictConfig, env: Environment) -> ActorFactorExeNetworks:
     assert cfg.agent == "factor_exe"
     if cfg.env.name == "bin_pack":
         assert isinstance(env.unwrapped, BinPack)
@@ -199,9 +191,7 @@ def setup_evaluators(cfg: DictConfig, agent: Agent) -> Tuple[Evaluator, Evaluato
     return stochastic_eval, greedy_eval
 
 
-def setup_training_state(
-    env: Environment, agent: Agent, key: chex.PRNGKey
-) -> TrainingState:
+def setup_training_state(env: Environment, agent: Agent, key: chex.PRNGKey) -> TrainingState:
     params_key, reset_key, acting_key = jax.random.split(key, 3)
 
     # Initialize params.
@@ -221,9 +211,7 @@ def setup_training_state(
         )
     )
     reset_keys_per_worker = reset_keys[jax.process_index()]
-    env_state, timestep = jax.pmap(env.reset, axis_name="devices")(
-        reset_keys_per_worker
-    )
+    env_state, timestep = jax.pmap(env.reset, axis_name="devices")(reset_keys_per_worker)
 
     # Initialize acting states.
     acting_key_per_device = jax.random.split(acting_key, num_global_devices).reshape(
