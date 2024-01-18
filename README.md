@@ -16,7 +16,7 @@
 - [x]: implement cycle env
 - [x]: implement transformer with chain of thought
 - [ ]: implement learning rate warmup
-- [ ]: add training on Cycle env (+ find good difficulty)
+- [x]: add training on Cycle env (+ find good difficulty)
 - [ ]: implement chain of thought training
 - [ ]: implement RL training
 
