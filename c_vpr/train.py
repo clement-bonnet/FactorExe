@@ -41,6 +41,7 @@ class Trainer:
         cot_start_token: Optional[int] = None,
         cot_loss_weight_mixing: float = 1.0,
         cot_stop_gradient_encoder: bool = True,
+        decode_from_sampled_cot_tokens: bool = False,
     ) -> None:
         self.model = model
         self.env = env
@@ -65,6 +66,7 @@ class Trainer:
         self.augmented_transformer = isinstance(model, AugmentedTransformer)
         self.cot_loss_weight_mixing = cot_loss_weight_mixing
         self.cot_stop_gradient_encoder = cot_stop_gradient_encoder
+        self.decode_from_sampled_cot_tokens = decode_from_sampled_cot_tokens
 
     def init_train_state(
         self,
@@ -153,22 +155,7 @@ class Trainer:
         )
 
         def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
-            logits = state.apply_fn(
-                variables={"params": params},
-                inputs=examples,
-                deterministic=False,
-                rngs={"dropout": dropout_key},
-                cot_key=cot_key,
-            )
-            supervised_loss = self.cross_entropy_loss(logits=logits, labels=labels)
-
-            # CoT loss
-            cot_tokens = jnp.concatenate(
-                [jnp.full((cots.shape[0], 1), self.cot_start_token), cots], axis=1
-            )
-            cot_labels = jnp.concatenate(
-                [cots, jnp.full((cots.shape[0], 1), self.cot_start_token)], axis=1
-            )
+            # Encoding
             encoder_embeddings = state.apply_fn(
                 variables={"params": params},
                 inputs=examples,
@@ -177,18 +164,51 @@ class Trainer:
                 rngs={"dropout": dropout_key},
                 method=self.model.encode,
             )
-            if self.cot_stop_gradient_encoder:
-                encoder_embeddings = jax.lax.stop_gradient(encoder_embeddings)
+
+            # CoT Module
+            cot_tokens = jnp.concatenate(
+                [jnp.full((cots.shape[0], 1), self.cot_start_token), cots], axis=1
+            )
+            cot_labels = jnp.concatenate(
+                [cots, jnp.full((cots.shape[0], 1), self.cot_start_token)], axis=1
+            )
             cot_logits = state.apply_fn(
                 variables={"params": params},
                 cot_tokens=cot_tokens,
-                encoder_embeddings=encoder_embeddings,
+                encoder_embeddings=(
+                    jax.lax.stop_gradient(encoder_embeddings)
+                    if self.cot_stop_gradient_encoder
+                    else encoder_embeddings
+                ),
                 deterministic=False,
                 pad_mask=None,
                 rngs={"dropout": dropout_key},
                 method=self.model.generate_cot_logits_from_encoder_embeddings,
             )
             cot_loss = self.cross_entropy_loss(logits=cot_logits, labels=cot_labels)
+            if self.decode_from_sampled_cot_tokens:
+                cot_tokens, _ = state.apply_fn(
+                    variables={"params": params},
+                    encoder_embeddings=encoder_embeddings,
+                    deterministic=False,
+                    cot_key=cot_key,
+                    pad_mask=None,
+                    rngs={"dropout": dropout_key},
+                    method=self.model.cot_module_call,
+                )
+
+            # Decoding
+            logits = state.apply_fn(
+                variables={"params": params},
+                encoder_embeddings=encoder_embeddings,
+                cot_tokens=cot_tokens,
+                deterministic=False,
+                encoder_pad_mask=None,
+                cot_pad_mask=None,
+                rngs={"dropout": dropout_key},
+                method=self.model.encode,
+            )
+            supervised_loss = self.cross_entropy_loss(logits=logits, labels=labels)
 
             loss = supervised_loss + self.cot_loss_weight_mixing * cot_loss
             return loss, (logits, cot_loss)
@@ -387,6 +407,7 @@ def run_augmented_transformer_exp(
     all_dropouts_rate: float = 0.0,
     cot_loss_weight_mixing: float = 1.0,
     cot_stop_gradient_encoder: bool = True,
+    decode_from_sampled_cot_tokens: bool = False,
     learning_rate: float = 3e-4,
     num_iterations: int = 100_000,
     batch_size: int = 512,
@@ -488,6 +509,7 @@ def run_augmented_transformer_exp(
         cot_start_token=cot_module_config.cot_vocab_size if cot_module_config else None,
         cot_loss_weight_mixing=cot_loss_weight_mixing,
         cot_stop_gradient_encoder=cot_stop_gradient_encoder,
+        decode_from_sampled_cot_tokens=decode_from_sampled_cot_tokens,
     )
     key = jax.random.PRNGKey(0)
     state = trainer.init_train_state(key, learning_rate)

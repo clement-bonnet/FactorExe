@@ -377,6 +377,39 @@ class AugmentedTransformer(nn.Module):
             pad_mask=pad_mask,
         )
 
+    def cot_module_call(
+        self,
+        *,
+        encoder_embeddings: chex.Array,
+        deterministic: bool,
+        cot_key: Optional[chex.PRNGKey] = None,
+        pad_mask: Optional[chex.Array] = None,
+    ) -> tuple[chex.Array, chex.Array]:
+        assert self.cot_module is not None
+        return self.cot_module(
+            encoder_embeddings=encoder_embeddings,
+            deterministic=deterministic,
+            cot_key=cot_key,
+            pad_mask=pad_mask,
+        )
+
+    def decode(
+        self,
+        *,
+        encoder_embeddings: chex.Array,
+        cot_tokens: Optional[chex.Array],
+        deterministic: bool,
+        encoder_pad_mask: Optional[chex.Array] = None,
+        cot_pad_mask: Optional[chex.Array] = None,
+    ) -> chex.Array:
+        return self.decoder(
+            encoder_embeddings=encoder_embeddings,
+            cot_tokens=cot_tokens,
+            deterministic=deterministic,
+            encoder_pad_mask=encoder_pad_mask,
+            cot_pad_mask=cot_pad_mask,
+        )
+
     @nn.compact
     def __call__(
         self,
