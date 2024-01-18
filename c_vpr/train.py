@@ -206,7 +206,7 @@ class Trainer:
                 encoder_pad_mask=None,
                 cot_pad_mask=None,
                 rngs={"dropout": dropout_key},
-                method=self.model.encode,
+                method=self.model.decode,
             )
             supervised_loss = self.cross_entropy_loss(logits=logits, labels=labels)
 
@@ -234,6 +234,7 @@ class Trainer:
         return state, metrics
 
     def eval(self, state: TrainState, key: chex.PRNGKey) -> dict[str, chex.Array]:
+        # TODO: implement evaluation with stochastic cot sampling
         """Note that when using chain of thought, we evaluate the model using the argmax of the cot logits,
         which is equivalent to using a temperature of 0."""
         metrics: dict[str, chex.Array] = {}
