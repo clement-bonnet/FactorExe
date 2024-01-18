@@ -57,9 +57,7 @@ class Trainer:
         self.train_num_hops = (
             [train_num_hops] if isinstance(train_num_hops, int) else train_num_hops
         )
-        self.eval_num_hops = (
-            [eval_num_hops] if isinstance(eval_num_hops, int) else eval_num_hops
-        )
+        self.eval_num_hops = [eval_num_hops] if isinstance(eval_num_hops, int) else eval_num_hops
         self.seq_length = seq_length
         self.batch_size = batch_size
         self.eval_size = eval_size
@@ -77,10 +75,8 @@ class Trainer:
         if verbose:
             num_params = sum(x.size for x in jax.tree_util.tree_leaves(params))
             logging.info("Number of parameters: {:,}".format(num_params))
-        optimizer = optax.chain(
-            optax.clip_by_global_norm(1.0), optax.adamw(learning_rate)
-        )
-        apply_fn = jax.jit(self.model.apply, static_argnames="deterministic")
+        optimizer = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(learning_rate))
+        apply_fn = jax.jit(self.model.apply, static_argnames=["deterministic", "method"])
         return TrainState.create(apply_fn=apply_fn, tx=optimizer, params=params)
 
     def _sample_n_hops(
@@ -120,9 +116,7 @@ class Trainer:
         sample_keys = jax.random.split(sample_key, self.batch_size)
         examples, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
 
-        def loss_fn(
-            params: dict, dropout_key: chex.PRNGKey
-        ) -> tuple[TrainState, chex.Array]:
+        def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
             input_kwargs = dict(  # noqa: C408
                 variables={"params": params},
                 inputs=examples,
@@ -138,15 +132,11 @@ class Trainer:
         grads, logits = jax.grad(loss_fn, has_aux=True)(state.params, dropout_key)
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
-        grad_norm = jnp.sqrt(
-            sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)])
-        )
+        grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
         metrics.update(grad_norm=grad_norm)
         return state, metrics
 
-    def train_step_cot(
-        self, state: TrainState, key: chex.PRNGKey
-    ) -> tuple[TrainState, dict]:
+    def train_step_cot(self, state: TrainState, key: chex.PRNGKey) -> tuple[TrainState, dict]:
         num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
 
         num_hops_indices = jax.random.choice(
@@ -156,13 +146,11 @@ class Trainer:
             replace=True,
         )
         sample_keys = jax.random.split(sample_key, self.batch_size)
-        examples, cots, labels = jax.vmap(
-            functools.partial(self._sample_n_hops, return_cot=True)
-        )(sample_keys, num_hops_indices)
+        examples, cots, labels = jax.vmap(functools.partial(self._sample_n_hops, return_cot=True))(
+            sample_keys, num_hops_indices
+        )
 
-        def loss_fn(
-            params: dict, dropout_key: chex.PRNGKey
-        ) -> tuple[TrainState, chex.Array]:
+        def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
             logits = state.apply_fn(
                 variables={"params": params},
                 inputs=examples,
@@ -207,12 +195,8 @@ class Trainer:
         )
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
-        grad_norm = jnp.sqrt(
-            sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)])
-        )
-        metrics.update(
-            grad_norm=grad_norm, supervised_loss=supervised_loss, cot_loss=cot_loss
-        )
+        grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
+        metrics.update(grad_norm=grad_norm, supervised_loss=supervised_loss, cot_loss=cot_loss)
         return state, metrics
 
     def train_epoch(
@@ -238,9 +222,7 @@ class Trainer:
         for num_hops, sample_key in zip(self.eval_num_hops, sample_keys):
             keys = jax.random.split(sample_key, self.eval_size)
             examples, labels = jax.vmap(
-                functools.partial(
-                    self.env.sample_n_hops, num_hops=num_hops, return_target=True
-                )
+                functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
             )(keys)
             logits = state.apply_fn(
                 {"params": state.params},
@@ -263,9 +245,7 @@ class Trainer:
         num_iterations: int,
         log_every: int,
     ) -> TrainState:
-        jit_train_epoch = jax.jit(
-            functools.partial(self.train_epoch, num_steps=log_every)
-        )
+        jit_train_epoch = jax.jit(functools.partial(self.train_epoch, num_steps=log_every))
         jit_eval = jax.jit(self.eval)
         num_epochs = num_iterations // log_every
         for epoch in trange(1, num_epochs + 1):
@@ -278,13 +258,9 @@ class Trainer:
     def cross_entropy_loss(self, logits: chex.Array, labels: chex.Array) -> chex.Array:
         num_classes = logits.shape[-1]
         one_hot_encoded_labels = jax.nn.one_hot(labels, num_classes=num_classes)
-        return optax.softmax_cross_entropy(
-            logits=logits, labels=one_hot_encoded_labels
-        ).mean()
+        return optax.softmax_cross_entropy(logits=logits, labels=one_hot_encoded_labels).mean()
 
-    def compute_metrics(
-        self, logits: chex.Array, labels: chex.Array
-    ) -> dict[str, chex.Array]:
+    def compute_metrics(self, logits: chex.Array, labels: chex.Array) -> dict[str, chex.Array]:
         loss = self.cross_entropy_loss(logits=logits, labels=labels)
         accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
         metrics = {
@@ -293,9 +269,7 @@ class Trainer:
         }
         return metrics
 
-    def save_checkpoint(
-        self, ckpt_path: str, state: TrainState, iteration: int
-    ) -> None:
+    def save_checkpoint(self, ckpt_path: str, state: TrainState, iteration: int) -> None:
         with open(ckpt_path, "wb") as outfile:
             outfile.write(msgpack_serialize(to_state_dict(state)))
         run_name = wandb.run.name.replace(",", "").replace(":", "").replace(" ", "")
