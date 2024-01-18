@@ -64,6 +64,7 @@ class Trainer:
         self.eval_size = eval_size
         self.augmented_transformer = isinstance(model, AugmentedTransformer)
         self.cot_loss_weight_mixing = cot_loss_weight_mixing
+        self.cot_stop_gradient_encoder = cot_stop_gradient_encoder
 
     def init_train_state(
         self,
