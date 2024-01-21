@@ -92,6 +92,11 @@ class Trainer:
                 key, self.train_num_hops[0], return_cot=return_cot, return_target=True
             )
         else:
+            if return_cot:
+                raise NotImplementedError(
+                    "Sampling with return_cot=True is not supported when using multiple "
+                    "values for train_num_hops. TODO: implement cot padding."
+                )
             return jax.lax.switch(  # type: ignore
                 num_hops_index,
                 [
@@ -130,7 +135,7 @@ class Trainer:
             if self.augmented_transformer:
                 input_kwargs.update(cot_key=cot_key)
             logits = state.apply_fn(**input_kwargs)
-            loss = self.cross_entropy_loss(logits=logits, labels=labels)
+            loss = cross_entropy_loss(logits=logits, labels=labels)
             return loss, logits
 
         grads, logits = jax.grad(loss_fn, has_aux=True)(state.params, dropout_key)
@@ -187,7 +192,7 @@ class Trainer:
                 rngs={"dropout": drop_key2},
                 method=self.model.generate_cot_logits_from_encoder_embeddings,
             )
-            cot_loss = self.cross_entropy_loss(logits=cot_logits, labels=cot_labels)
+            cot_loss = cross_entropy_loss(logits=cot_logits, labels=cot_labels)
             if self.decode_from_sampled_cot_tokens:
                 cot_tokens, _ = state.apply_fn(
                     variables={"params": params},
@@ -212,7 +217,7 @@ class Trainer:
                 rngs={"dropout": drop_key4},
                 method=self.model.decode,
             )
-            supervised_loss = self.cross_entropy_loss(logits=logits, labels=labels)
+            supervised_loss = cross_entropy_loss(logits=logits, labels=labels)
 
             loss = supervised_loss + self.cot_loss_weight_mixing * cot_loss
             return loss, (logits, cot_loss)
@@ -281,13 +286,8 @@ class Trainer:
             wandb.log(metrics, step=epoch * log_every)
         return state
 
-    def cross_entropy_loss(self, logits: chex.Array, labels: chex.Array) -> chex.Array:
-        num_classes = logits.shape[-1]
-        one_hot_encoded_labels = jax.nn.one_hot(labels, num_classes=num_classes)
-        return optax.softmax_cross_entropy(logits=logits, labels=one_hot_encoded_labels).mean()
-
     def compute_metrics(self, logits: chex.Array, labels: chex.Array) -> dict[str, chex.Array]:
-        loss = self.cross_entropy_loss(logits=logits, labels=labels)
+        loss = cross_entropy_loss(logits=logits, labels=labels)
         accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
         metrics = {
             "loss": loss,
@@ -310,16 +310,32 @@ class Trainer:
         wandb.log_artifact(artifact, aliases=["latest", f"iteration_{iteration}"])
 
     def load_checkpoint(
-        self, ckpt_file: str, state: TrainState, run_name: Optional[str] = None
+        self,
+        ckpt_file: str,
+        state: TrainState,
+        run_name: Optional[str] = None,
+        version: str = "latest",
     ) -> TrainState:
         run_name = run_name or wandb.run.name
-        run_name = run_name.replace(",", "").replace(":", "").replace(" ", "")
-        artifact = wandb.use_artifact(f"{run_name}--checkpoint:latest")
+        run_name = (
+            run_name.replace(",", ".")
+            .replace(":", "")
+            .replace(" ", "")
+            .replace("(", "_")
+            .replace(")", "_")
+        )
+        artifact = wandb.use_artifact(f"{run_name}--checkpoint:{version}")
         artifact_dir = artifact.download()
         ckpt_path = os.path.join(artifact_dir, ckpt_file)
         with open(ckpt_path, "rb") as data_file:
             byte_data = data_file.read()
         return from_bytes(state, byte_data)
+
+
+def cross_entropy_loss(logits: chex.Array, labels: chex.Array) -> chex.Array:
+    num_classes = logits.shape[-1]
+    one_hot_encoded_labels = jax.nn.one_hot(labels, num_classes=num_classes)
+    return optax.softmax_cross_entropy(logits=logits, labels=one_hot_encoded_labels).mean()
 
 
 def run_transformer_exp(
@@ -542,133 +558,152 @@ if __name__ == "__main__":
         batch_size=256,
         log_every=100,
         num_iterations=50_000,
-        run_name="Cycle 2-40, AT(0, 1, 1) COT",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        train_num_hops=2,
-        eval_num_hops=[1, 2, 3, 4],
-        seq_length=40,
-        mode=MODE.COT,
-        encoder_num_repeat_model=0,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_num_layers=1,
-        cot_num_repeat_model=1,
-        decoder_num_repeat_model=1,
-        decoder_num_layers=2,
-        batch_size=256,
-        log_every=100,
-        num_iterations=50_000,
-        run_name="Cycle 2-40, AT(0, 1, 2) COT",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        train_num_hops=2,
-        eval_num_hops=[1, 2, 3, 4],
-        seq_length=40,
-        mode=MODE.COT,
-        encoder_num_repeat_model=1,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_num_layers=1,
-        cot_num_repeat_model=1,
-        decoder_num_repeat_model=1,
-        decoder_num_layers=1,
-        batch_size=256,
-        log_every=100,
-        num_iterations=50_000,
-        run_name="Cycle 2-40, AT(1, 1, 1) COT",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        train_num_hops=2,
-        eval_num_hops=[1, 2, 3, 4],
-        seq_length=40,
-        mode=MODE.COT,
-        encoder_num_repeat_model=1,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_num_layers=1,
-        cot_num_repeat_model=1,
-        decoder_num_repeat_model=1,
-        decoder_num_layers=2,
-        batch_size=256,
-        log_every=100,
-        num_iterations=50_000,
-        run_name="Cycle 2-40, AT(1, 1, 2) COT",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        train_num_hops=2,
-        eval_num_hops=[1, 2, 3, 4],
-        seq_length=40,
-        mode=MODE.COT,
-        encoder_num_repeat_model=1,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_num_layers=2,
-        cot_num_repeat_model=1,
-        decoder_num_repeat_model=1,
-        decoder_num_layers=1,
-        batch_size=256,
-        log_every=100,
-        num_iterations=50_000,
-        run_name="Cycle 2-40, AT(1, 2, 1) COT",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        train_num_hops=2,
-        eval_num_hops=[1, 2, 3, 4],
-        seq_length=40,
-        mode=MODE.COT,
-        encoder_num_repeat_model=1,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_num_layers=2,
-        cot_num_repeat_model=1,
-        decoder_num_repeat_model=1,
-        decoder_num_layers=2,
-        batch_size=256,
-        log_every=100,
-        num_iterations=50_000,
-        run_name="Cycle 2-40, AT(1, 2, 2) COT",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        train_num_hops=2,
-        eval_num_hops=[1, 2, 3, 4],
-        seq_length=40,
-        mode=MODE.COT,
-        encoder_num_repeat_model=1,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_num_layers=1,
-        cot_num_repeat_model=1,
-        decoder_num_repeat_model=1,
-        decoder_num_layers=1,
-        batch_size=256,
-        log_every=100,
-        num_iterations=50_000,
+        run_name="Cycle 2-40, AT(0, 1, 1) COT no_stop_gradient",
         cot_stop_gradient_encoder=False,
-        run_name="Cycle 2-40, AT(1, 1, 1) COT no_stop_gradient",
     )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        train_num_hops=2,
-        eval_num_hops=[1, 2, 3, 4],
-        seq_length=40,
-        mode=MODE.COT,
-        encoder_num_repeat_model=1,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_num_layers=1,
-        cot_num_repeat_model=1,
-        decoder_num_repeat_model=1,
-        decoder_num_layers=2,
-        batch_size=256,
-        log_every=100,
-        num_iterations=50_000,
-        cot_stop_gradient_encoder=False,
-        run_name="Cycle 2-40, AT(1, 1, 2) COT no_stop_gradient",
-    )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     train_num_hops=2,
+    #     eval_num_hops=[1, 2, 3, 4],
+    #     seq_length=40,
+    #     mode=MODE.COT,
+    #     encoder_num_repeat_model=0,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_num_layers=1,
+    #     cot_num_repeat_model=1,
+    #     decoder_num_repeat_model=1,
+    #     decoder_num_layers=1,
+    #     batch_size=256,
+    #     log_every=100,
+    #     num_iterations=50_000,
+    #     run_name="Cycle 2-40, AT(0, 1, 1) COT",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     train_num_hops=2,
+    #     eval_num_hops=[1, 2, 3, 4],
+    #     seq_length=40,
+    #     mode=MODE.COT,
+    #     encoder_num_repeat_model=0,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_num_layers=1,
+    #     cot_num_repeat_model=1,
+    #     decoder_num_repeat_model=1,
+    #     decoder_num_layers=2,
+    #     batch_size=256,
+    #     log_every=100,
+    #     num_iterations=50_000,
+    #     run_name="Cycle 2-40, AT(0, 1, 2) COT",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     train_num_hops=2,
+    #     eval_num_hops=[1, 2, 3, 4],
+    #     seq_length=40,
+    #     mode=MODE.COT,
+    #     encoder_num_repeat_model=1,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_num_layers=1,
+    #     cot_num_repeat_model=1,
+    #     decoder_num_repeat_model=1,
+    #     decoder_num_layers=1,
+    #     batch_size=256,
+    #     log_every=100,
+    #     num_iterations=50_000,
+    #     run_name="Cycle 2-40, AT(1, 1, 1) COT",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     train_num_hops=2,
+    #     eval_num_hops=[1, 2, 3, 4],
+    #     seq_length=40,
+    #     mode=MODE.COT,
+    #     encoder_num_repeat_model=1,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_num_layers=1,
+    #     cot_num_repeat_model=1,
+    #     decoder_num_repeat_model=1,
+    #     decoder_num_layers=2,
+    #     batch_size=256,
+    #     log_every=100,
+    #     num_iterations=50_000,
+    #     run_name="Cycle 2-40, AT(1, 1, 2) COT",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     train_num_hops=2,
+    #     eval_num_hops=[1, 2, 3, 4],
+    #     seq_length=40,
+    #     mode=MODE.COT,
+    #     encoder_num_repeat_model=1,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_num_layers=2,
+    #     cot_num_repeat_model=1,
+    #     decoder_num_repeat_model=1,
+    #     decoder_num_layers=1,
+    #     batch_size=256,
+    #     log_every=100,
+    #     num_iterations=50_000,
+    #     run_name="Cycle 2-40, AT(1, 2, 1) COT",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     train_num_hops=2,
+    #     eval_num_hops=[1, 2, 3, 4],
+    #     seq_length=40,
+    #     mode=MODE.COT,
+    #     encoder_num_repeat_model=1,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_num_layers=2,
+    #     cot_num_repeat_model=1,
+    #     decoder_num_repeat_model=1,
+    #     decoder_num_layers=2,
+    #     batch_size=256,
+    #     log_every=100,
+    #     num_iterations=50_000,
+    #     run_name="Cycle 2-40, AT(1, 2, 2) COT",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     train_num_hops=2,
+    #     eval_num_hops=[1, 2, 3, 4],
+    #     seq_length=40,
+    #     mode=MODE.COT,
+    #     encoder_num_repeat_model=1,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_num_layers=1,
+    #     cot_num_repeat_model=1,
+    #     decoder_num_repeat_model=1,
+    #     decoder_num_layers=1,
+    #     batch_size=256,
+    #     log_every=100,
+    #     num_iterations=50_000,
+    #     cot_stop_gradient_encoder=False,
+    #     run_name="Cycle 2-40, AT(1, 1, 1) COT no_stop_gradient",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     train_num_hops=2,
+    #     eval_num_hops=[1, 2, 3, 4],
+    #     seq_length=40,
+    #     mode=MODE.COT,
+    #     encoder_num_repeat_model=1,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_num_layers=1,
+    #     cot_num_repeat_model=1,
+    #     decoder_num_repeat_model=1,
+    #     decoder_num_layers=2,
+    #     batch_size=256,
+    #     log_every=100,
+    #     num_iterations=50_000,
+    #     cot_stop_gradient_encoder=False,
+    #     run_name="Cycle 2-40, AT(1, 1, 2) COT no_stop_gradient",
+    # )
