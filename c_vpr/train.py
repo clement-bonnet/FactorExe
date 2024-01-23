@@ -149,7 +149,7 @@ class Trainer:
 
     def train_step_cot(self, state: TrainState, key: chex.PRNGKey) -> tuple[TrainState, dict]:
         num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
-        drop_key1, drop_key2, drop_key3, drop_key4 = jax.random.split(dropout_key, 4)
+        drop_key1, drop_key2, drop_key3 = jax.random.split(dropout_key, 3)
 
         num_hops_indices = jax.random.choice(
             num_hops_key,
@@ -173,7 +173,7 @@ class Trainer:
                 inputs=inputs,
                 deterministic=False,
                 inputs_pad_mask=None,
-                rngs={"dropout": drop_key2},
+                rngs={"dropout": drop_key1},
                 method=self.model.cot_module_generate_cot_logits,
             )
             cot_loss = cross_entropy_loss(logits=cot_logits, labels=cots)
@@ -185,7 +185,7 @@ class Trainer:
                     pad_mask=None,
                     cot_sampling=True,
                     cot_key=cot_key,
-                    rngs={"dropout": drop_key3},
+                    rngs={"dropout": drop_key2},
                     method=self.model.cot_module_call,
                 )
             else:
@@ -199,7 +199,7 @@ class Trainer:
                 deterministic=False,
                 inputs_pad_mask=None,
                 cot_pad_mask=None,
-                rngs={"dropout": drop_key4},
+                rngs={"dropout": drop_key3},
                 method=self.model.encoder_call,
             )
             supervised_loss = cross_entropy_loss(logits=logits, labels=labels)
