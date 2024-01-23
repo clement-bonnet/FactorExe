@@ -149,6 +149,7 @@ class Trainer:
 
     def train_step_cot(self, state: TrainState, key: chex.PRNGKey) -> tuple[TrainState, dict]:
         num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
+        drop_key1, drop_key2, drop_key3, drop_key4 = jax.random.split(dropout_key, 4)
 
         num_hops_indices = jax.random.choice(
             num_hops_key,
@@ -161,19 +162,7 @@ class Trainer:
             sample_keys, num_hops_indices
         )
 
-        def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
-            drop_key1, drop_key2, drop_key3, drop_key4 = jax.random.split(dropout_key, 4)
-
-            # Input Encoding for CoT Module.
-            inputs_embeddings = state.apply_fn(
-                variables={"params": params},
-                inputs=inputs,
-                deterministic=False,
-                pad_mask=None,
-                rngs={"dropout": drop_key1},
-                method=self.model.cot_module_encode_inputs,
-            )
-
+        def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
             # CoT Module forward pass.
             cot_tokens = jnp.concatenate(
                 [jnp.full((cots.shape[0], 1), self.cot_start_token), cots], axis=1
@@ -181,7 +170,7 @@ class Trainer:
             cot_logits = state.apply_fn(
                 variables={"params": params},
                 cot_tokens=cot_tokens,
-                inputs_embeddings=inputs_embeddings,
+                inputs=inputs,
                 deterministic=False,
                 inputs_pad_mask=None,
                 rngs={"dropout": drop_key2},
@@ -218,7 +207,7 @@ class Trainer:
             loss = supervised_loss + self.cot_loss_weight_mixing * cot_loss
             return loss, (logits, cot_loss)
 
-        grads, (logits, cot_loss) = jax.grad(loss_fn, has_aux=True)(state.params, dropout_key)
+        grads, (logits, cot_loss) = jax.grad(loss_fn, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
         grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
@@ -373,15 +362,15 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     if cot_module:
         if mode in [MODE.COT, MODE.RL] and isinstance(train_num_hops, int):
             if cot_seq_length != train_num_hops:
-                logging.warning(
+                raise ValueError(
                     f"cot_seq_length ({cot_seq_length}) is different from train_num_hops "
                     f"({train_num_hops}), which means that the chain of thought sequence and the "
                     "chain of thoughts labels have different lengths. This is not supported yet."
                 )
-            if cot_vocab_size != cot_seq_length:
-                logging.warning(
-                    f"cot_vocab_size ({cot_vocab_size}) is different from cot_seq_length "
-                    f"({cot_seq_length}), which is not supported yet."
+            if cot_vocab_size != seq_length:
+                raise ValueError(
+                    f"cot_vocab_size ({cot_vocab_size}) is different from seq_length "
+                    f"({seq_length}), which is not supported yet."
                 )
         cot_module_config = CoTModuleConfig(
             input_transformer_config=TransformerConfig(
@@ -500,17 +489,17 @@ if __name__ == "__main__":
     # Selected Cycle difficulties: []
     run_augmented_transformer_exp(
         env_name="Cycle",
-        mode=MODE.SUPERVISED,
-        train_num_hops=1,
+        mode=MODE.COT,
+        train_num_hops=2,
         eval_num_hops=[1, 2, 3, 4],
         seq_length=40,
         cot_module=True,
-        cot_seq_length=1,
-        cot_vocab_size=1,
+        cot_seq_length=2,
+        cot_vocab_size=40,
         batch_size=256,
         log_every=100,
         num_iterations=5_000,
-        run_name="Cycle supervised AT1 CoT",
+        run_name="Cycle 1-40 CoT AT1 CoT",
         seed=1,
     )
     # run_augmented_transformer_exp(

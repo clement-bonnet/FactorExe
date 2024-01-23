@@ -334,27 +334,18 @@ class AugmentedTransformer(nn.Module):
         self.cot_module = CoTModule(self.cot_module_config) if self.cot_module_config else None
         self.encoder = Encoder(self.encoder_config)
 
-    def cot_module_encode_inputs(
-        self,
-        *,
-        inputs: chex.Array,
-        deterministic: bool,
-        pad_mask: Optional[chex.Array] = None,
-    ) -> chex.Array:
-        assert self.cot_module is not None
-        return self.cot_module.encode_inputs(
-            inputs=inputs, deterministic=deterministic, pad_mask=pad_mask
-        )
-
     def cot_module_generate_cot_logits(
         self,
         *,
+        inputs: chex.Array,
         cot_tokens: chex.Array,
-        inputs_embeddings: chex.Array,
         deterministic: bool,
         inputs_pad_mask: Optional[chex.Array] = None,
     ) -> chex.Array:
         assert self.cot_module is not None
+        inputs_embeddings = self.cot_module.encode_inputs(
+            inputs=inputs, deterministic=deterministic, pad_mask=inputs_pad_mask
+        )
         cot_logits = self.cot_module.generate_logits(
             cot_tokens=cot_tokens,
             inputs_embeddings=inputs_embeddings,
