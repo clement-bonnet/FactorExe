@@ -13,9 +13,9 @@ from flax.training.train_state import TrainState
 from tqdm.auto import trange
 
 import wandb
-from c_vpr.old_augmented_transformer import AugmentedTransformer, CoTModuleConfig
 from c_vpr.cycle import Cycle
 from c_vpr.env import C_VPR, Env
+from c_vpr.old_augmented_transformer import AugmentedTransformer, CoTModuleConfig
 from c_vpr.transformer import Transformer, TransformerConfig
 
 logging.getLogger().setLevel(logging.INFO)

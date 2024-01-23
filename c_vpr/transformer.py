@@ -165,7 +165,7 @@ if __name__ == "__main__":
         output_vocab_size=seq_length,
         emb_dim=384,
         num_heads=6,
-        num_layers=2,
+        num_layers=1,
         num_repeat_model=1,
         mlp_dim_factor=4,
         max_len=seq_length,
