@@ -399,7 +399,7 @@ class AugmentedTransformer(nn.Module):
         pad_mask: Optional[chex.Array] = None,
         cot_sampling: bool = False,
         cot_key: Optional[chex.PRNGKey] = None,
-    ) -> chex.Array:
+    ) -> tuple[chex.Array, Optional[chex.Array]]:
         """Applies AugmentedTransformer model on the inputs.
 
         Args:
@@ -414,7 +414,7 @@ class AugmentedTransformer(nn.Module):
         """
         # CoT Module block.
         if self.cot_module is not None:
-            cot_tokens, _ = self.cot_module(
+            cot_tokens, cot_logits = self.cot_module(
                 inputs=inputs,
                 deterministic=deterministic,
                 pad_mask=pad_mask,
@@ -422,7 +422,7 @@ class AugmentedTransformer(nn.Module):
                 cot_key=cot_key,
             )
         else:
-            cot_tokens = None
+            cot_tokens, cot_logits = None, None
 
         # Encoder block.
         logits = self.encoder(
@@ -433,7 +433,7 @@ class AugmentedTransformer(nn.Module):
             cot_pad_mask=None,
         )
 
-        return logits
+        return logits, cot_logits
 
 
 if __name__ == "__main__":

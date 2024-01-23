@@ -44,6 +44,7 @@ class Trainer:
         eval_size: int,
         cot_start_token: Optional[int] = None,
         cot_loss_weight_mixing: float = 1.0,
+        rl_loss_weight_mixing: float = 1.0,
         decode_from_sampled_cot_tokens: bool = False,
     ) -> None:
         self.model = model
@@ -69,6 +70,7 @@ class Trainer:
         self.batch_size = batch_size
         self.eval_size = eval_size
         self.cot_loss_weight_mixing = cot_loss_weight_mixing
+        self.rl_loss_weight_mixing = rl_loss_weight_mixing
         self.decode_from_sampled_cot_tokens = decode_from_sampled_cot_tokens
 
     def init_train_state(
@@ -131,7 +133,7 @@ class Trainer:
         inputs, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
 
         def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
-            logits = state.apply_fn(
+            logits, _ = state.apply_fn(
                 variables={"params": params},
                 inputs=inputs,
                 deterministic=False,
@@ -214,6 +216,43 @@ class Trainer:
         metrics.update(grad_norm=grad_norm, cot_loss=cot_loss)
         return state, metrics
 
+    def train_step_rl(self, state: TrainState, key: chex.PRNGKey) -> tuple[TrainState, dict]:
+        num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
+        drop_key1, drop_key2, drop_key3 = jax.random.split(dropout_key, 3)
+
+        num_hops_indices = jax.random.choice(
+            num_hops_key,
+            jnp.arange(len(self.train_num_hops)),
+            (self.batch_size,),
+            replace=True,
+        )
+        sample_keys = jax.random.split(sample_key, self.batch_size)
+        inputs, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
+
+        def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
+            logits, cot_logits = state.apply_fn(
+                variables={"params": params},
+                inputs=inputs,
+                deterministic=False,
+                cot_key=cot_key,
+                cot_sampling=True,
+                rngs={"dropout": dropout_key},
+            )
+            supervised_loss = cross_entropy_loss(logits=logits, labels=labels)
+
+            # TODO: implement RL loss.
+            rl_loss = ...
+
+            loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss  # type: ignore
+            return loss, (logits, cot_loss)
+
+        grads, (logits, cot_loss) = jax.grad(loss_fn, has_aux=True)(state.params)
+        state = state.apply_gradients(grads=grads)
+        metrics = self.compute_metrics(logits, labels)
+        grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
+        metrics.update(grad_norm=grad_norm, cot_loss=cot_loss)
+        return state, metrics
+
     def train_epoch(
         self, state: TrainState, key: chex.PRNGKey, num_steps: int
     ) -> tuple[TrainState, dict]:
@@ -243,7 +282,7 @@ class Trainer:
                 functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
             )(keys)
             cot_key, key = jax.random.split(key)
-            logits = state.apply_fn(
+            logits, _ = state.apply_fn(
                 variables={"params": state.params},
                 inputs=inputs,
                 deterministic=True,
@@ -350,6 +389,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     mlp_dim_factor: float = 4,
     all_dropouts_rate: float = 0.0,
     cot_loss_weight_mixing: float = 1.0,
+    rl_loss_weight_mixing: float = 1.0,
     decode_from_sampled_cot_tokens: bool = False,
     learning_rate: float = 3e-4,
     num_iterations: int = 100_000,
@@ -475,6 +515,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
         eval_size,
         cot_start_token=cot_module_config.cot_vocab_size if cot_module_config else None,
         cot_loss_weight_mixing=cot_loss_weight_mixing,
+        rl_loss_weight_mixing=rl_loss_weight_mixing,
         decode_from_sampled_cot_tokens=decode_from_sampled_cot_tokens,
     )
     key = jax.random.PRNGKey(seed)
