@@ -44,20 +44,21 @@ class Trainer:
         eval_size: int,
         cot_start_token: Optional[int] = None,
         cot_loss_weight_mixing: float = 1.0,
-        cot_stop_gradient_encoder: bool = True,
         decode_from_sampled_cot_tokens: bool = False,
     ) -> None:
         self.model = model
         self.env = env
         if mode not in MODE:
             raise ValueError(f"Unknown mode: {mode}")
-        if mode in [MODE.COT, MODE.RL]:
-            if not isinstance(model, AugmentedTransformer):
-                raise TypeError(
-                    "COT and RL modes require model to be an instance of AugmentedTransformer"
-                )
-            if cot_start_token is None:
-                raise ValueError("COT and RL modes require cot_start_token to be set")
+        if mode in [MODE.COT, MODE.RL] and cot_start_token is None:
+            raise ValueError("COT and RL modes require cot_start_token to be set")
+        if mode == MODE.SUPERVISED and model.cot_module_config is not None:
+            logging.warn(
+                "Got mode: SUPERVISED and cot_module: True. However, the CoTModule is not trained"
+                "in this mode. This means the tokens the encoder attends to are generated randomly"
+                "which may hinder the performance of the model. Turn cot_module to False or use"
+                "COT or RL mode to train the CoTModule."
+            )
         self.mode = mode
         self.cot_start_token = cot_start_token
         self.train_num_hops = (
@@ -68,7 +69,6 @@ class Trainer:
         self.batch_size = batch_size
         self.eval_size = eval_size
         self.cot_loss_weight_mixing = cot_loss_weight_mixing
-        self.cot_stop_gradient_encoder = cot_stop_gradient_encoder
         self.decode_from_sampled_cot_tokens = decode_from_sampled_cot_tokens
 
     def init_train_state(
@@ -83,7 +83,9 @@ class Trainer:
             num_params = sum(x.size for x in jax.tree_util.tree_leaves(params))
             logging.info("Number of parameters: {:,}".format(num_params))
         optimizer = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(learning_rate))
-        apply_fn = jax.jit(self.model.apply, static_argnames=["deterministic", "method"])
+        apply_fn = jax.jit(
+            self.model.apply, static_argnames=["deterministic", "cot_sampling", "method"]
+        )
         return TrainState.create(apply_fn=apply_fn, tx=optimizer, params=params)
 
     def _sample_n_hops(
@@ -126,12 +128,12 @@ class Trainer:
             replace=True,
         )
         sample_keys = jax.random.split(sample_key, self.batch_size)
-        examples, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
+        inputs, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
 
         def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
             logits = state.apply_fn(
                 variables={"params": params},
-                inputs=examples,
+                inputs=inputs,
                 deterministic=False,
                 rngs={"dropout": dropout_key},
             )
@@ -155,67 +157,61 @@ class Trainer:
             replace=True,
         )
         sample_keys = jax.random.split(sample_key, self.batch_size)
-        examples, cots, labels = jax.vmap(functools.partial(self._sample_n_hops, return_cot=True))(
+        inputs, cots, labels = jax.vmap(functools.partial(self._sample_n_hops, return_cot=True))(
             sample_keys, num_hops_indices
         )
 
         def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
             drop_key1, drop_key2, drop_key3, drop_key4 = jax.random.split(dropout_key, 4)
 
-            # Encoding
-            encoder_embeddings = state.apply_fn(
+            # Input Encoding for CoT Module.
+            inputs_embeddings = state.apply_fn(
                 variables={"params": params},
-                inputs=examples,
+                inputs=inputs,
                 deterministic=False,
                 pad_mask=None,
                 rngs={"dropout": drop_key1},
-                method=self.model.encode,
+                method=self.model.cot_module_encode_inputs,
             )
 
-            # CoT Module
+            # CoT Module forward pass.
             cot_tokens = jnp.concatenate(
                 [jnp.full((cots.shape[0], 1), self.cot_start_token), cots], axis=1
-            )
-            cot_labels = jnp.concatenate(
-                [cots, jnp.full((cots.shape[0], 1), self.cot_start_token)], axis=1
             )
             cot_logits = state.apply_fn(
                 variables={"params": params},
                 cot_tokens=cot_tokens,
-                encoder_embeddings=(
-                    jax.lax.stop_gradient(encoder_embeddings)
-                    if self.cot_stop_gradient_encoder
-                    else encoder_embeddings
-                ),
+                inputs_embeddings=inputs_embeddings,
                 deterministic=False,
-                pad_mask=None,
+                inputs_pad_mask=None,
                 rngs={"dropout": drop_key2},
-                method=self.model.generate_cot_logits_from_encoder_embeddings,
+                method=self.model.cot_module_generate_cot_logits,
             )
-            cot_loss = cross_entropy_loss(logits=cot_logits, labels=cot_labels)
+            cot_loss = cross_entropy_loss(logits=cot_logits, labels=cots)
             if self.decode_from_sampled_cot_tokens:
                 cot_tokens, _ = state.apply_fn(
                     variables={"params": params},
-                    encoder_embeddings=encoder_embeddings,
+                    inputs=inputs,
                     deterministic=False,
-                    cot_key=cot_key,
                     pad_mask=None,
+                    cot_sampling=True,
+                    cot_key=cot_key,
                     rngs={"dropout": drop_key3},
                     method=self.model.cot_module_call,
                 )
             else:
-                cot_tokens = cots  # Remove the start token
+                cot_tokens = cots
 
-            # Decoding
+            # Encoder forward pass.
             logits = state.apply_fn(
                 variables={"params": params},
-                encoder_embeddings=encoder_embeddings,
+                inputs=inputs,
                 cot_tokens=cot_tokens,
                 deterministic=False,
-                encoder_pad_mask=None,
+                inputs_pad_mask=None,
                 cot_pad_mask=None,
                 rngs={"dropout": drop_key4},
-                method=self.model.decode,
+                method=self.model.encoder_call,
             )
             supervised_loss = cross_entropy_loss(logits=logits, labels=labels)
 
@@ -254,13 +250,13 @@ class Trainer:
         sample_keys = jax.random.split(key, len(self.eval_num_hops))
         for num_hops, sample_key in zip(self.eval_num_hops, sample_keys):
             keys = jax.random.split(sample_key, self.eval_size)
-            examples, labels = jax.vmap(
+            inputs, labels = jax.vmap(
                 functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
             )(keys)
             cot_key, key = jax.random.split(key)
             logits = state.apply_fn(
                 variables={"params": state.params},
-                inputs=examples,
+                inputs=inputs,
                 deterministic=True,
                 cot_key=cot_key,
                 cot_sampling=cot_sampling,
@@ -365,7 +361,6 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     mlp_dim_factor: float = 4,
     all_dropouts_rate: float = 0.0,
     cot_loss_weight_mixing: float = 1.0,
-    cot_stop_gradient_encoder: bool = True,
     decode_from_sampled_cot_tokens: bool = False,
     learning_rate: float = 3e-4,
     num_iterations: int = 100_000,
@@ -491,7 +486,6 @@ def run_augmented_transformer_exp(  # noqa: CCR001
         eval_size,
         cot_start_token=cot_module_config.cot_vocab_size if cot_module_config else None,
         cot_loss_weight_mixing=cot_loss_weight_mixing,
-        cot_stop_gradient_encoder=cot_stop_gradient_encoder,
         decode_from_sampled_cot_tokens=decode_from_sampled_cot_tokens,
     )
     key = jax.random.PRNGKey(seed)
@@ -510,17 +504,15 @@ if __name__ == "__main__":
         train_num_hops=1,
         eval_num_hops=[1, 2, 3, 4],
         seq_length=40,
-        cot_module=False,
+        cot_module=True,
         cot_seq_length=1,
         cot_vocab_size=1,
         batch_size=256,
         log_every=100,
         num_iterations=5_000,
-        run_name="Cycle supervised AT1",
-        cot_stop_gradient_encoder=False,
+        run_name="Cycle supervised AT1 CoT",
         seed=1,
     )
-
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     train_num_hops=2,
@@ -645,7 +637,6 @@ if __name__ == "__main__":
     #     batch_size=256,
     #     log_every=100,
     #     num_iterations=50_000,
-    #     cot_stop_gradient_encoder=False,
     #     run_name="Cycle 2-40, AT(1, 1, 1) COT no_stop_gradient",
     # )
     # run_augmented_transformer_exp(
@@ -664,6 +655,5 @@ if __name__ == "__main__":
     #     batch_size=256,
     #     log_every=100,
     #     num_iterations=50_000,
-    #     cot_stop_gradient_encoder=False,
     #     run_name="Cycle 2-40, AT(1, 1, 2) COT no_stop_gradient",
     # )

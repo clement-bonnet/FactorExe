@@ -43,10 +43,24 @@ class CoTModule(nn.Module):
     config: CoTModuleConfig
 
     def setup(self) -> None:
+        # Inputs layers.
+        self.inputs_tok_embed = nn.Embed(
+            num_embeddings=self.config.input_transformer_config.vocab_size,
+            features=self.config.input_transformer_config.emb_dim,
+            name="inputs_tok_embed",
+        )
+        self.inputs_pos_embed = nn.Embed(
+            num_embeddings=self.config.input_transformer_config.max_len,
+            features=self.config.input_transformer_config.emb_dim,
+            name="pos_embed",
+        )
+        self.inputs_dropout = nn.Dropout(rate=self.config.input_transformer_config.dropout_rate)
         self.input_transformer_layers = [
             TransformerLayer(self.config.input_transformer_config)
             for _ in range(self.config.input_transformer_config.num_layers)
         ]
+
+        # CoT layers.
         self.cot_tok_embed = nn.Embed(
             num_embeddings=self.config.cot_vocab_size + 1,  # +1 for the start token embedding
             features=self.config.cot_cross_transformer_config.emb_dim,
@@ -62,10 +76,39 @@ class CoTModule(nn.Module):
             CrossTransformerLayer(self.config.cot_cross_transformer_config)
             for _ in range(self.config.cot_cross_transformer_config.num_layers)
         ]
+
+        # Head layers.
         self.layer_norm = nn.LayerNorm(dtype=self.config.dtype, use_bias=self.config.use_bias)
         self.linear_head = nn.Dense(
             self.config.cot_vocab_size, self.config.use_bias, self.config.dtype
         )
+
+    def encode_inputs(
+        self,
+        *,
+        inputs: chex.Array,
+        deterministic: bool,
+        pad_mask: Optional[chex.Array] = None,
+    ) -> chex.Array:
+        input_transformer_config = self.config.input_transformer_config
+
+        # Input embedding block.
+        assert inputs.ndim == 2  # (B, T)
+        inputs = inputs.astype("int32")
+        tok_embed = self.inputs_tok_embed(inputs)
+        pos_embed = self.inputs_pos_embed(jnp.arange(input_transformer_config.max_len))
+        inputs_embeddings = tok_embed + pos_embed
+        inputs_embeddings = self.inputs_dropout(inputs_embeddings, deterministic=deterministic)
+
+        # Input encoder block.
+        for _ in range(input_transformer_config.num_repeat_model):
+            for layer in self.input_transformer_layers:
+                inputs_embeddings = layer(
+                    embeddings=inputs_embeddings,
+                    deterministic=deterministic,
+                    pad_mask=pad_mask,
+                )
+        return inputs_embeddings
 
     @nn.compact
     def __call__(
@@ -94,34 +137,9 @@ class CoTModule(nn.Module):
           could also output a chain of shape (B, T_C, H) representing a sequence of cot embeddings.
         """
         config = self.config
-        input_transformer_config = self.config.input_transformer_config
-
-        # Input embedding block.
-        assert inputs.ndim == 2  # (B, T)
-        inputs = inputs.astype("int32")
-        tok_embed = nn.Embed(
-            num_embeddings=input_transformer_config.vocab_size,
-            features=input_transformer_config.emb_dim,
-            name="tok_embed",
-        )(inputs)
-        pos_embed = nn.Embed(
-            num_embeddings=input_transformer_config.max_len,
-            features=input_transformer_config.emb_dim,
-            name="pos_embed",
-        )(jnp.arange(input_transformer_config.max_len))
-        inputs_embeddings = tok_embed + pos_embed
-        inputs_embeddings = nn.Dropout(rate=input_transformer_config.dropout_rate)(
-            inputs_embeddings, deterministic=deterministic
+        inputs_embeddings = self.encode_inputs(
+            inputs=inputs, deterministic=deterministic, pad_mask=pad_mask
         )
-
-        # Input encoder block.
-        for _ in range(input_transformer_config.num_repeat_model):
-            for layer in self.input_transformer_layers:
-                inputs_embeddings = layer(
-                    embeddings=inputs_embeddings,
-                    deterministic=deterministic,
-                    pad_mask=pad_mask,
-                )
 
         # CoT autoregressive block.
         cot_tokens = jnp.zeros(
@@ -316,63 +334,70 @@ class AugmentedTransformer(nn.Module):
         self.cot_module = CoTModule(self.cot_module_config) if self.cot_module_config else None
         self.encoder = Encoder(self.encoder_config)
 
-    # def encode(
-    #     self,
-    #     *,
-    #     inputs: chex.Array,
-    #     deterministic: bool,
-    #     pad_mask: Optional[chex.Array] = None,
-    # ) -> chex.Array:
-    #     return self.encoder(inputs=inputs, deterministic=deterministic, pad_mask=pad_mask)
+    def cot_module_encode_inputs(
+        self,
+        *,
+        inputs: chex.Array,
+        deterministic: bool,
+        pad_mask: Optional[chex.Array] = None,
+    ) -> chex.Array:
+        assert self.cot_module is not None
+        return self.cot_module.encode_inputs(
+            inputs=inputs, deterministic=deterministic, pad_mask=pad_mask
+        )
 
-    # def generate_cot_logits_from_encoder_embeddings(
-    #     self,
-    #     *,
-    #     cot_tokens: chex.Array,
-    #     encoder_embeddings: chex.Array,
-    #     deterministic: bool,
-    #     pad_mask: Optional[chex.Array] = None,
-    # ) -> chex.Array:
-    #     assert isinstance(self.cot_module, CoTModule)
-    #     return self.cot_module.generate_logits(
-    #         cot_tokens=cot_tokens,
-    #         encoder_embeddings=encoder_embeddings,
-    #         deterministic=deterministic,
-    #         pad_mask=pad_mask,
-    #     )
+    def cot_module_generate_cot_logits(
+        self,
+        *,
+        cot_tokens: chex.Array,
+        inputs_embeddings: chex.Array,
+        deterministic: bool,
+        inputs_pad_mask: Optional[chex.Array] = None,
+    ) -> chex.Array:
+        assert self.cot_module is not None
+        cot_logits = self.cot_module.generate_logits(
+            cot_tokens=cot_tokens,
+            inputs_embeddings=inputs_embeddings,
+            deterministic=deterministic,
+            inputs_pad_mask=inputs_pad_mask,
+        )
+        cot_logits = cot_logits[:, :-1, :]  # do not need to train on the last token
+        return cot_logits
 
-    # def cot_module_call(
-    #     self,
-    #     *,
-    #     encoder_embeddings: chex.Array,
-    #     deterministic: bool,
-    #     cot_key: Optional[chex.PRNGKey] = None,
-    #     pad_mask: Optional[chex.Array] = None,
-    # ) -> tuple[chex.Array, chex.Array]:
-    #     assert self.cot_module is not None
-    #     return self.cot_module(
-    #         encoder_embeddings=encoder_embeddings,
-    #         deterministic=deterministic,
-    #         cot_key=cot_key,
-    #         pad_mask=pad_mask,
-    #     )
+    def cot_module_call(
+        self,
+        *,
+        inputs: chex.Array,
+        deterministic: bool,
+        pad_mask: Optional[chex.Array] = None,
+        cot_sampling: bool = False,
+        cot_key: Optional[chex.PRNGKey] = None,
+    ) -> tuple[chex.Array, chex.Array]:
+        assert self.cot_module is not None
+        return self.cot_module(  # type: ignore
+            inputs=inputs,
+            deterministic=deterministic,
+            pad_mask=pad_mask,
+            cot_sampling=cot_sampling,
+            cot_key=cot_key,
+        )
 
-    # def decode(
-    #     self,
-    #     *,
-    #     encoder_embeddings: chex.Array,
-    #     cot_tokens: Optional[chex.Array],
-    #     deterministic: bool,
-    #     encoder_pad_mask: Optional[chex.Array] = None,
-    #     cot_pad_mask: Optional[chex.Array] = None,
-    # ) -> chex.Array:
-    #     return self.decoder(
-    #         encoder_embeddings=encoder_embeddings,
-    #         cot_tokens=cot_tokens,
-    #         deterministic=deterministic,
-    #         encoder_pad_mask=encoder_pad_mask,
-    #         cot_pad_mask=cot_pad_mask,
-    #     )
+    def encoder_call(
+        self,
+        *,
+        inputs: chex.Array,
+        cot_tokens: Optional[chex.Array],
+        deterministic: bool,
+        inputs_pad_mask: Optional[chex.Array] = None,
+        cot_pad_mask: Optional[chex.Array] = None,
+    ) -> chex.Array:
+        return self.encoder(
+            inputs=inputs,
+            cot_tokens=cot_tokens,
+            deterministic=deterministic,
+            inputs_pad_mask=inputs_pad_mask,
+            cot_pad_mask=cot_pad_mask,
+        )
 
     @nn.compact
     def __call__(
