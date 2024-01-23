@@ -67,7 +67,6 @@ class Trainer:
         self.seq_length = seq_length
         self.batch_size = batch_size
         self.eval_size = eval_size
-        self.augmented_transformer = isinstance(model, AugmentedTransformer)
         self.cot_loss_weight_mixing = cot_loss_weight_mixing
         self.cot_stop_gradient_encoder = cot_stop_gradient_encoder
         self.decode_from_sampled_cot_tokens = decode_from_sampled_cot_tokens
@@ -130,15 +129,12 @@ class Trainer:
         examples, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
 
         def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
-            input_kwargs = dict(  # noqa: C408
+            logits = state.apply_fn(
                 variables={"params": params},
                 inputs=examples,
                 deterministic=False,
                 rngs={"dropout": dropout_key},
             )
-            if self.augmented_transformer:
-                input_kwargs.update(cot_key=cot_key)
-            logits = state.apply_fn(**input_kwargs)
             loss = cross_entropy_loss(logits=logits, labels=labels)
             return loss, logits
 
@@ -261,15 +257,14 @@ class Trainer:
             examples, labels = jax.vmap(
                 functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
             )(keys)
-            kwargs = {
-                "variables": {"params": state.params},
-                "inputs": examples,
-                "deterministic": True,
-            }
-            if self.augmented_transformer and cot_sampling:
-                cot_key, key = jax.random.split(key)
-                kwargs.update(cot_key=cot_key, cot_sampling=cot_sampling)
-            logits = state.apply_fn(**kwargs)
+            cot_key, key = jax.random.split(key)
+            logits = state.apply_fn(
+                variables={"params": state.params},
+                inputs=examples,
+                deterministic=True,
+                cot_key=cot_key,
+                cot_sampling=cot_sampling,
+            )
             metrics.update(
                 {
                     f"eval/num_hops:{num_hops}/{k}": v
