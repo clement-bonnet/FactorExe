@@ -21,10 +21,10 @@ class TransformerConfig:
     # use_bias or dropout_rate might not matter)
     vocab_size: Optional[int]
     output_vocab_size: Optional[int]
-    emb_dim: int
-    num_heads: int
-    num_layers: int
     num_repeat_model: int
+    num_layers: int
+    num_heads: int
+    emb_dim: int
     mlp_dim_factor: float
     max_len: Optional[int]
     dropout_rate: float

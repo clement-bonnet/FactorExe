@@ -13,9 +13,13 @@ from flax.training.train_state import TrainState
 from tqdm.auto import trange
 
 import wandb
+from c_vpr.augmented_transformer import (
+    AugmentedTransformer,
+    CoTModuleConfig,
+    EncoderConfig,
+)
 from c_vpr.cycle import Cycle
 from c_vpr.env import C_VPR, Env
-from c_vpr.old_augmented_transformer import AugmentedTransformer, CoTModuleConfig
 from c_vpr.transformer import Transformer, TransformerConfig
 
 logging.getLogger().setLevel(logging.INFO)
@@ -242,10 +246,12 @@ class Trainer:
         metrics = jax.tree_util.tree_map(jnp.mean, metrics)
         return state, metrics
 
-    def eval(self, state: TrainState, key: chex.PRNGKey) -> dict[str, chex.Array]:
-        # TODO: implement evaluation with stochastic cot sampling
-        """Note that when using chain of thought, we evaluate the model using the argmax of the cot logits,
-        which is equivalent to using a temperature of 0."""
+    def eval(
+        self, state: TrainState, key: chex.PRNGKey, cot_sampling: bool = False
+    ) -> dict[str, chex.Array]:
+        """Note that when using chain of thought, if cot_sampling is False, we evaluate the
+        model using the argmax of the cot logits, which is equivalent to sampling using a
+        temperature of 0."""
         metrics: dict[str, chex.Array] = {}
         if self.eval_num_hops is None:
             return metrics
@@ -255,11 +261,15 @@ class Trainer:
             examples, labels = jax.vmap(
                 functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
             )(keys)
-            logits = state.apply_fn(
-                {"params": state.params},
-                inputs=examples,
-                deterministic=True,
-            )
+            kwargs = {
+                "variables": {"params": state.params},
+                "inputs": examples,
+                "deterministic": True,
+            }
+            if self.augmented_transformer and cot_sampling:
+                cot_key, key = jax.random.split(key)
+                kwargs.update(cot_key=cot_key, cot_sampling=cot_sampling)
+            logits = state.apply_fn(**kwargs)
             metrics.update(
                 {
                     f"eval/num_hops:{num_hops}/{k}": v
@@ -339,18 +349,18 @@ def cross_entropy_loss(logits: chex.Array, labels: chex.Array) -> chex.Array:
 
 
 def run_transformer_exp(
-    env_name: str = "C_VPR",
+    env_name: str = "Cycle",
     mode: MODE = MODE.SUPERVISED,
     train_num_hops: int | list[int] = 3,
     eval_num_hops: int | list[int] | None = None,
     seq_length: int = 10,
-    num_layers: int = 2,
+    num_layers: int = 1,
     num_repeat_model: int = 1,
     emb_dim: int = 384,
     num_heads: int = 6,
     mlp_dim_factor: float = 4,
     dropout_rate: float = 0.0,
-    learning_rate: float = 5e-4,
+    learning_rate: float = 3e-4,
     num_iterations: int = 100_000,
     batch_size: int = 512,
     eval_size: int = 500,
@@ -406,24 +416,25 @@ def run_transformer_exp(
     wandb.finish()
 
 
-def run_augmented_transformer_exp(
-    env_name: str = "C_VPR",
+def run_augmented_transformer_exp(  # noqa: CCR001
+    env_name: str = "Cycle",
     mode: MODE = MODE.SUPERVISED,
     train_num_hops: int | list[int] = 3,
     eval_num_hops: int | list[int] | None = None,
     seq_length: int = 10,
-    encoder_num_heads: int = 6,
-    encoder_num_layers: int = 1,
-    encoder_num_repeat_model: int = 1,
     cot_module: bool = False,
     cot_seq_length: int = 3,
-    cot_num_heads: int = 6,
-    cot_num_layers: int = 1,
-    cot_num_repeat_model: int = 1,
-    decoder_num_heads: int = 6,
-    decoder_num_layers: int = 1,
-    decoder_num_repeat_model: int = 1,
+    cot_vocab_size: int = 3,
+    cot_module_input_encoder_num_repeat: int = 1,
+    cot_module_input_encoder_num_layers: int = 1,
+    cot_module_cross_transformer_num_repeat: int = 1,
+    cot_module_cross_transformer_num_layers: int = 1,
+    encoder_cot_encoder_num_repeat: int = 1,
+    encoder_cot_encoder_num_layers: int = 1,
+    encoder_cross_transformer_num_repeat: int = 1,
+    encoder_cross_transformer_num_layers: int = 1,
     emb_dim: int = 384,
+    num_heads: int = 6,
     mlp_dim_factor: float = 4,
     all_dropouts_rate: float = 0.0,
     cot_loss_weight_mixing: float = 1.0,
@@ -436,65 +447,88 @@ def run_augmented_transformer_exp(
     log_every: int = 100,
     run_name: Optional[str] = None,
 ) -> None:
-    encoder_config = TransformerConfig(
-        vocab_size=seq_length,
-        output_vocab_size=None,
-        emb_dim=emb_dim,
-        num_heads=encoder_num_heads,
-        num_layers=encoder_num_layers,
-        num_repeat_model=encoder_num_repeat_model,
-        mlp_dim_factor=mlp_dim_factor,
-        max_len=seq_length,
-        dropout_rate=all_dropouts_rate,
-        attention_dropout_rate=all_dropouts_rate,
-    )
     if cot_module:
-        if (
-            mode in [MODE.COT, MODE.RL]
-            and isinstance(train_num_hops, int)
-            and cot_seq_length != train_num_hops
-        ):
-            logging.warning(
-                f"cot_seq_length ({cot_seq_length}) is different from train_num_hops "
-                "({train_num_hops}), which means that the chain of thought sequence and "
-                "the chain of thoughts labels have different lengths. This is not supported yet."
-            )
+        if mode in [MODE.COT, MODE.RL] and isinstance(train_num_hops, int):
+            if cot_seq_length != train_num_hops:
+                logging.warning(
+                    f"cot_seq_length ({cot_seq_length}) is different from train_num_hops "
+                    f"({train_num_hops}), which means that the chain of thought sequence and the "
+                    "chain of thoughts labels have different lengths. This is not supported yet."
+                )
+            if cot_vocab_size != cot_seq_length:
+                logging.warning(
+                    f"cot_vocab_size ({cot_vocab_size}) is different from cot_seq_length "
+                    f"({cot_seq_length}), which is not supported yet."
+                )
         cot_module_config = CoTModuleConfig(
-            cross_transformer_config=TransformerConfig(
+            input_transformer_config=TransformerConfig(
+                vocab_size=seq_length,
+                output_vocab_size=None,
+                num_repeat_model=cot_module_input_encoder_num_repeat,
+                num_layers=cot_module_input_encoder_num_layers,
+                num_heads=num_heads,
+                emb_dim=emb_dim,
+                mlp_dim_factor=mlp_dim_factor,
+                max_len=seq_length,
+                dropout_rate=all_dropouts_rate,
+                attention_dropout_rate=all_dropouts_rate,
+            ),
+            cot_cross_transformer_config=TransformerConfig(
                 vocab_size=None,
                 output_vocab_size=None,
+                num_repeat_model=cot_module_cross_transformer_num_repeat,
+                num_layers=cot_module_cross_transformer_num_layers,
+                num_heads=num_heads,
                 emb_dim=emb_dim,
-                num_heads=cot_num_heads,
-                num_layers=cot_num_layers,
-                num_repeat_model=cot_num_repeat_model,
                 mlp_dim_factor=mlp_dim_factor,
                 max_len=None,
                 dropout_rate=all_dropouts_rate,
                 attention_dropout_rate=all_dropouts_rate,
             ),
             cot_seq_length=cot_seq_length,
-            cot_vocab_size=seq_length,
+            cot_vocab_size=cot_vocab_size,
         )
     else:
-        assert mode != MODE.COT, "COT mode requires cot_module to be True"
+        if mode != MODE.SUPERVISED:
+            raise ValueError(
+                f"Only SUPERVISED mode supports cot_module to be False. Got mode: {mode} "
+                f"and cot_module: {cot_module}."
+            )
         cot_module_config = None
-    decoder_config = TransformerConfig(
-        vocab_size=None,
-        output_vocab_size=seq_length,
-        emb_dim=emb_dim,
-        num_heads=decoder_num_heads,
-        num_layers=decoder_num_layers,
-        num_repeat_model=decoder_num_repeat_model,
-        mlp_dim_factor=mlp_dim_factor,
-        max_len=None,
-        dropout_rate=all_dropouts_rate,
-        attention_dropout_rate=all_dropouts_rate,
+
+    encoder_config = EncoderConfig(
+        cot_transformer_config=TransformerConfig(
+            vocab_size=cot_vocab_size,
+            output_vocab_size=None,
+            num_repeat_model=encoder_cot_encoder_num_repeat,
+            num_layers=encoder_cot_encoder_num_layers,
+            num_heads=num_heads,
+            emb_dim=emb_dim,
+            mlp_dim_factor=mlp_dim_factor,
+            max_len=cot_seq_length,
+            dropout_rate=all_dropouts_rate,
+            attention_dropout_rate=all_dropouts_rate,
+        ),
+        cot_seq_length=cot_seq_length,
+        cot_vocab_size=cot_vocab_size,
+        input_cross_transformer_config=TransformerConfig(
+            vocab_size=seq_length,
+            output_vocab_size=seq_length,
+            num_repeat_model=encoder_cross_transformer_num_repeat,
+            num_layers=encoder_cross_transformer_num_layers,
+            num_heads=num_heads,
+            emb_dim=emb_dim,
+            mlp_dim_factor=mlp_dim_factor,
+            max_len=seq_length,
+            dropout_rate=all_dropouts_rate,
+            attention_dropout_rate=all_dropouts_rate,
+        ),
     )
     model = AugmentedTransformer(
-        encoder_config,
         cot_module_config,
-        decoder_config,
+        encoder_config,
     )
+
     if env_name == "C_VPR":
         env = C_VPR(seq_length)
     elif env_name == "Cycle":
@@ -503,7 +537,7 @@ def run_augmented_transformer_exp(
         raise ValueError(f"Unknown environment: {env_name}")
 
     config = {}
-    for c in [encoder_config, cot_module_config, decoder_config]:
+    for c in [cot_module_config, encoder_config]:
         if c is not None:
             config.update(c.__dict__)
     wandb.init(
@@ -544,23 +578,31 @@ if __name__ == "__main__":
     # Selected Cycle difficulties: []
     run_augmented_transformer_exp(
         env_name="Cycle",
-        train_num_hops=2,
+        mode=MODE.SUPERVISED,
+        train_num_hops=1,
         eval_num_hops=[1, 2, 3, 4],
         seq_length=40,
-        mode=MODE.COT,
-        encoder_num_repeat_model=0,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_num_layers=1,
-        cot_num_repeat_model=1,
-        decoder_num_repeat_model=1,
-        decoder_num_layers=1,
+        cot_module=False,
+        cot_seq_length=1,
+        cot_vocab_size=1,
         batch_size=256,
         log_every=100,
-        num_iterations=50_000,
-        run_name="Cycle 2-40, AT(0, 1, 1) COT no_stop_gradient",
+        num_iterations=5_000,
+        run_name="Cycle supervised AT1",
         cot_stop_gradient_encoder=False,
     )
+    run_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.SUPERVISED,
+        train_num_hops=1,
+        eval_num_hops=[1, 2, 3, 4],
+        seq_length=40,
+        batch_size=256,
+        log_every=100,
+        num_iterations=5_000,
+        run_name="Cycle supervised T1",
+    )
+
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     train_num_hops=2,

@@ -238,7 +238,8 @@ class CoTModule(nn.Module):
           cot_tokens: tokens from the chain of thoughts.
           inputs_embeddings: input embeddings from the encoder.
           deterministic: if false dropout is applied otherwise it is not.
-          inputs_pad_mask: mask to apply on the inputs embeddings to avoid attending to padding tokens.
+          inputs_pad_mask: mask to apply on the inputs embeddings to avoid attending to padding
+            tokens.
 
         Returns:
           logits of shape (B, T_C, V) representing a sequence of logits.
