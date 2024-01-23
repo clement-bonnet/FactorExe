@@ -497,7 +497,7 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         batch_size=256,
         log_every=100,
-        num_iterations=10_000,
+        num_iterations=40_000,
         run_name="Cycle 2-40 COT_mode AT1",
     )
     run_augmented_transformer_exp(
@@ -510,7 +510,7 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         batch_size=256,
         log_every=100,
-        num_iterations=10_000,
+        num_iterations=40_000,
         run_name="Cycle 2-40 SUPERVISED_mode T1",
     )
     run_augmented_transformer_exp(
@@ -523,6 +523,6 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         batch_size=256,
         log_every=100,
-        num_iterations=10_000,
+        num_iterations=40_000,
         run_name="Cycle 2-40 SUPERVISED_mode AT1",
     )
