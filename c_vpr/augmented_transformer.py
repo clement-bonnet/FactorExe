@@ -7,7 +7,11 @@ import jax
 import jax.numpy as jnp
 from flax import linen as nn
 
-from c_vpr.transformer import MlpBlock, TransformerConfig, TransformerLayer
+from c_vpr.transformer_utils import (
+    CrossTransformerLayer,
+    TransformerConfig,
+    TransformerLayer,
+)
 
 if TYPE_CHECKING:
     from dataclasses import dataclass
@@ -33,83 +37,6 @@ class EncoderConfig:
     input_cross_transformer_config: TransformerConfig
     use_bias: bool = False
     dtype: Any = jnp.float32
-
-
-class CrossTransformerLayer(nn.Module):
-    """Transformer layer that does the following: self-attention, cross-attention, and feed-forward.
-
-    Attributes:
-      config: TransformerConfig dataclass containing hyperparameters.
-    """
-
-    config: TransformerConfig
-
-    @nn.compact
-    def __call__(
-        self,
-        self_embeddings: chex.Array,
-        cross_embeddings: Optional[chex.Array],
-        deterministic: bool,
-        self_pad_mask: Optional[chex.Array] = None,
-        cross_pad_mask: Optional[chex.Array] = None,
-    ) -> chex.Array:
-        """Applies TransformerLayer module.
-
-        Args:
-          self_embeddings: input data.
-          cross_embeddings (optional): input data to do cross-attention on.
-          deterministic: if false dropout is applied otherwise it is not.
-          self_pad_mask: mask to apply on the self inputs to avoid attending to padding tokens.
-          cross_pad_mask: mask to apply on the cross inputs to avoid attending to padding tokens.
-
-        Returns:
-          output after cross transformer layer.
-        """
-        config = self.config
-        assert self_embeddings.ndim == 3
-        if cross_embeddings is not None:
-            assert cross_embeddings.ndim == 3
-
-        # Self-attention block.
-        x = nn.LayerNorm(dtype=config.dtype, use_bias=config.use_bias)(self_embeddings)
-        x = nn.MultiHeadDotProductAttention(
-            num_heads=config.num_heads,
-            dtype=config.dtype,
-            dropout_rate=config.attention_dropout_rate,
-            use_bias=config.use_bias,
-        )(
-            inputs_q=x,
-            inputs_kv=x,
-            mask=self_pad_mask,
-            deterministic=deterministic,
-        )
-        residuals = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
-        self_embeddings += residuals
-
-        # Cross-attention block.
-        if cross_embeddings is not None:
-            inputs_q = nn.LayerNorm(dtype=config.dtype, use_bias=config.use_bias)(self_embeddings)
-            inputs_kv = nn.LayerNorm(dtype=config.dtype, use_bias=config.use_bias)(cross_embeddings)
-            x = nn.MultiHeadDotProductAttention(
-                num_heads=config.num_heads,
-                dtype=config.dtype,
-                dropout_rate=config.attention_dropout_rate,
-                use_bias=config.use_bias,
-            )(
-                inputs_q=inputs_q,
-                inputs_kv=inputs_kv,
-                mask=cross_pad_mask,
-                deterministic=deterministic,
-            )
-            residuals = nn.Dropout(rate=config.dropout_rate)(x, deterministic=deterministic)
-            self_embeddings += residuals
-
-        # MLP block.
-        x = nn.LayerNorm(dtype=config.dtype, use_bias=config.use_bias)(self_embeddings)
-        residuals = MlpBlock(config=config)(x, deterministic=deterministic)
-        self_embeddings += residuals
-
-        return self_embeddings
 
 
 class CoTModule(nn.Module):
@@ -191,7 +118,7 @@ class CoTModule(nn.Module):
         for _ in range(input_transformer_config.num_repeat_model):
             for layer in self.input_transformer_layers:
                 inputs_embeddings = layer(
-                    inputs=inputs_embeddings,
+                    embeddings=inputs_embeddings,
                     deterministic=deterministic,
                     pad_mask=pad_mask,
                 )
@@ -332,7 +259,7 @@ class Encoder(nn.Module):
             for _ in range(cot_transformer_config.num_repeat_model):
                 for layer in self.cot_transformer_layers:
                     cot_embeddings = layer(
-                        inputs=cot_embeddings,
+                        embeddings=cot_embeddings,
                         deterministic=deterministic,
                         pad_mask=cot_pad_mask,
                     )

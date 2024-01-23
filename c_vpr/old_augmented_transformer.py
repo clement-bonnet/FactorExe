@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 from flax import linen as nn
 
-from c_vpr.transformer import MlpBlock, TransformerConfig, TransformerLayer
+from c_vpr.transformer_utils import MlpBlock, TransformerConfig, TransformerLayer
 
 if TYPE_CHECKING:
     from dataclasses import dataclass

@@ -20,7 +20,7 @@ from c_vpr.augmented_transformer import (
 )
 from c_vpr.cycle import Cycle
 from c_vpr.env import C_VPR, Env
-from c_vpr.transformer import Transformer, TransformerConfig
+from c_vpr.transformer_utils import TransformerConfig
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -34,7 +34,7 @@ class MODE(Enum):
 class Trainer:
     def __init__(
         self,
-        model: Transformer | AugmentedTransformer,
+        model: AugmentedTransformer,
         env: Env,
         mode: MODE,
         train_num_hops: int | list[int],
@@ -348,74 +348,6 @@ def cross_entropy_loss(logits: chex.Array, labels: chex.Array) -> chex.Array:
     return optax.softmax_cross_entropy(logits=logits, labels=one_hot_encoded_labels).mean()
 
 
-def run_transformer_exp(
-    env_name: str = "Cycle",
-    mode: MODE = MODE.SUPERVISED,
-    train_num_hops: int | list[int] = 3,
-    eval_num_hops: int | list[int] | None = None,
-    seq_length: int = 10,
-    num_layers: int = 1,
-    num_repeat_model: int = 1,
-    emb_dim: int = 384,
-    num_heads: int = 6,
-    mlp_dim_factor: float = 4,
-    dropout_rate: float = 0.0,
-    learning_rate: float = 3e-4,
-    num_iterations: int = 100_000,
-    batch_size: int = 512,
-    eval_size: int = 500,
-    log_every: int = 100,
-    run_name: Optional[str] = None,
-) -> None:
-    config = TransformerConfig(
-        vocab_size=seq_length,
-        output_vocab_size=seq_length,
-        emb_dim=emb_dim,
-        num_heads=num_heads,
-        num_layers=num_layers,
-        num_repeat_model=num_repeat_model,
-        mlp_dim_factor=mlp_dim_factor,
-        max_len=seq_length,
-        dropout_rate=dropout_rate,
-        attention_dropout_rate=dropout_rate,
-    )
-    model = Transformer(config)
-    if env_name == "C_VPR":
-        env = C_VPR(seq_length)
-    elif env_name == "Cycle":
-        env = Cycle(seq_length)  # type: ignore
-    else:
-        raise ValueError(f"Unknown environment: {env_name}")
-
-    wandb.init(
-        project="FactorExe",
-        config=config.__dict__,
-        name=run_name,
-    )
-    wandb.config.train_num_hops = train_num_hops
-    wandb.config.eval_num_hops = eval_num_hops
-    wandb.config.learning_rate = learning_rate
-    wandb.config.num_iterations = num_iterations
-    wandb.config.batch_size = batch_size
-    wandb.config.eval_size = eval_size
-
-    trainer = Trainer(
-        model,
-        env,
-        mode,
-        train_num_hops,
-        eval_num_hops,
-        seq_length,
-        batch_size,
-        eval_size,
-    )
-    key = jax.random.PRNGKey(0)
-    state = trainer.init_train_state(key, learning_rate)
-    state = trainer.train(state, key, num_iterations, log_every)
-    trainer.save_checkpoint("checkpoint.msgpack", state, iteration=num_iterations)
-    wandb.finish()
-
-
 def run_augmented_transformer_exp(  # noqa: CCR001
     env_name: str = "Cycle",
     mode: MODE = MODE.SUPERVISED,
@@ -445,6 +377,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     batch_size: int = 512,
     eval_size: int = 500,
     log_every: int = 100,
+    seed: int = 0,
     run_name: Optional[str] = None,
 ) -> None:
     if cot_module:
@@ -566,7 +499,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
         cot_stop_gradient_encoder=cot_stop_gradient_encoder,
         decode_from_sampled_cot_tokens=decode_from_sampled_cot_tokens,
     )
-    key = jax.random.PRNGKey(0)
+    key = jax.random.PRNGKey(seed)
     state = trainer.init_train_state(key, learning_rate)
     state = trainer.train(state, key, num_iterations, log_every)
     trainer.save_checkpoint("checkpoint.msgpack", state, iteration=num_iterations)
@@ -590,17 +523,7 @@ if __name__ == "__main__":
         num_iterations=5_000,
         run_name="Cycle supervised AT1",
         cot_stop_gradient_encoder=False,
-    )
-    run_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.SUPERVISED,
-        train_num_hops=1,
-        eval_num_hops=[1, 2, 3, 4],
-        seq_length=40,
-        batch_size=256,
-        log_every=100,
-        num_iterations=5_000,
-        run_name="Cycle supervised T1",
+        seed=1,
     )
 
     # run_augmented_transformer_exp(
