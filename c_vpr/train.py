@@ -218,7 +218,6 @@ class Trainer:
 
     def train_step_rl(self, state: TrainState, key: chex.PRNGKey) -> tuple[TrainState, dict]:
         num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
-        drop_key1, drop_key2, drop_key3 = jax.random.split(dropout_key, 3)
 
         num_hops_indices = jax.random.choice(
             num_hops_key,
@@ -230,7 +229,7 @@ class Trainer:
         inputs, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
 
         def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
-            logits, cot_logits = state.apply_fn(
+            logits, (cot_tokens, cot_logits) = state.apply_fn(
                 variables={"params": params},
                 inputs=inputs,
                 deterministic=False,
@@ -241,16 +240,21 @@ class Trainer:
             supervised_loss = cross_entropy_loss(logits=logits, labels=labels)
 
             # TODO: implement RL loss.
-            rl_loss = ...
+            rewards = jax.lax.stop_gradient(-cross_entropy_loss(logits, labels, mean=False))
+            cot_all_log_prob = jax.nn.log_softmax(cot_logits)
+            cot_log_prob = jnp.take_along_axis(
+                cot_all_log_prob, cot_tokens[:, None], axis=-1
+            )  # TODO: fix this
+            rl_loss = jnp.mean(-rewards * cot_log_prob)
 
-            loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss  # type: ignore
-            return loss, (logits, cot_loss)
+            loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
+            return loss, (logits, rl_loss)
 
-        grads, (logits, cot_loss) = jax.grad(loss_fn, has_aux=True)(state.params)
+        grads, (logits, rl_loss) = jax.grad(loss_fn, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
         grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
-        metrics.update(grad_norm=grad_norm, cot_loss=cot_loss)
+        metrics.update(grad_norm=grad_norm, rl_loss=rl_loss)
         return state, metrics
 
     def train_epoch(
@@ -262,7 +266,7 @@ class Trainer:
         elif self.mode == MODE.COT:
             state, metrics = jax.lax.scan(self.train_step_cot, state, keys)
         elif self.mode == MODE.RL:
-            raise NotImplementedError("RL mode is not implemented yet")
+            state, metrics = jax.lax.scan(self.train_step_rl, state, keys)
         metrics = jax.tree_util.tree_map(jnp.mean, metrics)
         return state, metrics
 
@@ -361,10 +365,14 @@ class Trainer:
         return from_bytes(state, byte_data)
 
 
-def cross_entropy_loss(logits: chex.Array, labels: chex.Array) -> chex.Array:
+def cross_entropy_loss(logits: chex.Array, labels: chex.Array, mean: bool = True) -> chex.Array:
     num_classes = logits.shape[-1]
     one_hot_encoded_labels = jax.nn.one_hot(labels, num_classes=num_classes)
-    return optax.softmax_cross_entropy(logits=logits, labels=one_hot_encoded_labels).mean()
+    cross_entropies = optax.softmax_cross_entropy(logits=logits, labels=one_hot_encoded_labels)
+    if mean:
+        return cross_entropies.mean()
+    else:
+        return cross_entropies
 
 
 def run_augmented_transformer_exp(  # noqa: CCR001
@@ -528,86 +536,86 @@ def run_augmented_transformer_exp(  # noqa: CCR001
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
-    for seed in range(5):
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.SUPERVISED,
-            train_num_hops=3,
-            seq_length=40,
-            cot_module=False,
-            cot_seq_length=3,
-            cot_vocab_size=40,
-            batch_size=256,
-            log_every=500,
-            num_iterations=100_000,
-            run_name=f"Cycle 3-40 SUPERVISED_mode T1 seed_{seed}",
-        )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.SUPERVISED,
-            train_num_hops=3,
-            seq_length=40,
-            encoder_cross_transformer_num_layers=2,
-            cot_module=False,
-            cot_seq_length=3,
-            cot_vocab_size=40,
-            batch_size=256,
-            log_every=500,
-            num_iterations=100_000,
-            run_name=f"Cycle 3-40 SUPERVISED_mode T2 seed_{seed}",
-        )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.SUPERVISED,
-            train_num_hops=3,
-            seq_length=40,
-            encoder_cross_transformer_num_layers=3,
-            cot_module=False,
-            cot_seq_length=3,
-            cot_vocab_size=40,
-            batch_size=256,
-            log_every=500,
-            num_iterations=100_000,
-            run_name=f"Cycle 3-40 SUPERVISED_mode T3 seed_{seed}",
-        )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.COT,
-            train_num_hops=3,
-            seq_length=40,
-            cot_module=True,
-            cot_seq_length=3,
-            cot_vocab_size=40,
-            batch_size=256,
-            log_every=500,
-            num_iterations=100_000,
-            run_name=f"Cycle 3-40 SUPERVISED_mode AT1 seed_{seed}",
-        )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.COT,
-            train_num_hops=3,
-            seq_length=40,
-            encoder_cross_transformer_num_layers=2,
-            cot_module=True,
-            cot_seq_length=3,
-            cot_vocab_size=40,
-            batch_size=256,
-            log_every=500,
-            num_iterations=100_000,
-            run_name=f"Cycle 3-40 SUPERVISED_mode AT2 seed_{seed}",
-        )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.COT,
-            train_num_hops=3,
-            seq_length=40,
-            encoder_cross_transformer_num_layers=3,
-            cot_module=True,
-            cot_seq_length=3,
-            cot_vocab_size=40,
-            batch_size=256,
-            log_every=500,
-            num_iterations=100_000,
-            run_name=f"Cycle 3-40 SUPERVISED_mode AT3 seed_{seed}",
-        )
+    seed = 0
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.SUPERVISED,
+    #     train_num_hops=3,
+    #     seq_length=40,
+    #     cot_module=False,
+    #     cot_seq_length=3,
+    #     cot_vocab_size=40,
+    #     batch_size=256,
+    #     log_every=500,
+    #     num_iterations=100_000,
+    #     run_name=f"Cycle 3-40 SUPERVISED_mode T1 seed_{seed}",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.SUPERVISED,
+    #     train_num_hops=3,
+    #     seq_length=40,
+    #     encoder_cross_transformer_num_layers=2,
+    #     cot_module=False,
+    #     cot_seq_length=3,
+    #     cot_vocab_size=40,
+    #     batch_size=256,
+    #     log_every=500,
+    #     num_iterations=100_000,
+    #     run_name=f"Cycle 3-40 SUPERVISED_mode T2 seed_{seed}",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.SUPERVISED,
+    #     train_num_hops=3,
+    #     seq_length=40,
+    #     encoder_cross_transformer_num_layers=3,
+    #     cot_module=False,
+    #     cot_seq_length=3,
+    #     cot_vocab_size=40,
+    #     batch_size=256,
+    #     log_every=500,
+    #     num_iterations=100_000,
+    #     run_name=f"Cycle 3-40 SUPERVISED_mode T3 seed_{seed}",
+    # )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=3,
+        seq_length=40,
+        cot_module=True,
+        cot_seq_length=3,
+        cot_vocab_size=40,
+        batch_size=256,
+        log_every=500,
+        num_iterations=100_000,
+        # run_name=f"Cycle 3-40 COT_mode AT1 seed_{seed}",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.COT,
+        train_num_hops=3,
+        seq_length=40,
+        encoder_cross_transformer_num_layers=2,
+        cot_module=True,
+        cot_seq_length=3,
+        cot_vocab_size=40,
+        batch_size=256,
+        log_every=500,
+        num_iterations=100_000,
+        run_name=f"Cycle 3-40 COT_mode AT2 seed_{seed}",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.COT,
+        train_num_hops=3,
+        seq_length=40,
+        encoder_cross_transformer_num_layers=3,
+        cot_module=True,
+        cot_seq_length=3,
+        cot_vocab_size=40,
+        batch_size=256,
+        log_every=500,
+        num_iterations=100_000,
+        run_name=f"Cycle 3-40 COT_mode AT3 seed_{seed}",
+    )

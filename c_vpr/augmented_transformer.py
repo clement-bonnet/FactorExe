@@ -399,7 +399,7 @@ class AugmentedTransformer(nn.Module):
         pad_mask: Optional[chex.Array] = None,
         cot_sampling: bool = False,
         cot_key: Optional[chex.PRNGKey] = None,
-    ) -> tuple[chex.Array, Optional[chex.Array]]:
+    ) -> tuple[chex.Array, tuple[Optional[chex.Array], Optional[chex.Array]]]:
         """Applies AugmentedTransformer model on the inputs.
 
         Args:
@@ -433,7 +433,7 @@ class AugmentedTransformer(nn.Module):
             cot_pad_mask=None,
         )
 
-        return logits, cot_logits
+        return logits, (cot_tokens, cot_logits)
 
 
 if __name__ == "__main__":
