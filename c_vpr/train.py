@@ -239,13 +239,12 @@ class Trainer:
             )
             supervised_loss = cross_entropy_loss(logits=logits, labels=labels)
 
-            # TODO: implement RL loss.
             rewards = jax.lax.stop_gradient(-cross_entropy_loss(logits, labels, mean=False))
             cot_all_log_prob = jax.nn.log_softmax(cot_logits)
             cot_log_prob = jnp.take_along_axis(
-                cot_all_log_prob, cot_tokens[:, None], axis=-1
-            )  # TODO: fix this
-            rl_loss = jnp.mean(-rewards * cot_log_prob)
+                cot_all_log_prob, cot_tokens[..., None], axis=-1
+            ).squeeze(-1)
+            rl_loss = jnp.mean(-rewards[..., None] * cot_log_prob)
 
             loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
             return loss, (logits, rl_loss)
@@ -536,7 +535,6 @@ def run_augmented_transformer_exp(  # noqa: CCR001
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
-    seed = 0
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.SUPERVISED,
@@ -589,33 +587,33 @@ if __name__ == "__main__":
         batch_size=256,
         log_every=500,
         num_iterations=100_000,
-        # run_name=f"Cycle 3-40 COT_mode AT1 seed_{seed}",
+        run_name="Cycle 3-40 RL_mode AT1",
     )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.COT,
-        train_num_hops=3,
-        seq_length=40,
-        encoder_cross_transformer_num_layers=2,
-        cot_module=True,
-        cot_seq_length=3,
-        cot_vocab_size=40,
-        batch_size=256,
-        log_every=500,
-        num_iterations=100_000,
-        run_name=f"Cycle 3-40 COT_mode AT2 seed_{seed}",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.COT,
-        train_num_hops=3,
-        seq_length=40,
-        encoder_cross_transformer_num_layers=3,
-        cot_module=True,
-        cot_seq_length=3,
-        cot_vocab_size=40,
-        batch_size=256,
-        log_every=500,
-        num_iterations=100_000,
-        run_name=f"Cycle 3-40 COT_mode AT3 seed_{seed}",
-    )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.COT,
+    #     train_num_hops=3,
+    #     seq_length=40,
+    #     encoder_cross_transformer_num_layers=2,
+    #     cot_module=True,
+    #     cot_seq_length=3,
+    #     cot_vocab_size=40,
+    #     batch_size=256,
+    #     log_every=500,
+    #     num_iterations=100_000,
+    #     run_name=f"Cycle 3-40 COT_mode AT2 seed_{seed}",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.COT,
+    #     train_num_hops=3,
+    #     seq_length=40,
+    #     encoder_cross_transformer_num_layers=3,
+    #     cot_module=True,
+    #     cot_seq_length=3,
+    #     cot_vocab_size=40,
+    #     batch_size=256,
+    #     log_every=500,
+    #     num_iterations=100_000,
+    #     run_name=f"Cycle 3-40 COT_mode AT3 seed_{seed}",
+    # )
