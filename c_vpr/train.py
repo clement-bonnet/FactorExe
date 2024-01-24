@@ -139,7 +139,7 @@ class Trainer:
                 deterministic=False,
                 rngs={"dropout": dropout_key},
             )
-            loss = cross_entropy_loss(logits=logits, labels=labels)
+            loss = cross_entropy_loss(logits, labels)
             return loss, logits
 
         grads, logits = jax.grad(loss_fn, has_aux=True)(state.params, dropout_key)
@@ -204,7 +204,7 @@ class Trainer:
                 rngs={"dropout": drop_key3},
                 method=self.model.encoder_call,
             )
-            supervised_loss = cross_entropy_loss(logits=logits, labels=labels)
+            supervised_loss = cross_entropy_loss(logits, labels)
 
             loss = supervised_loss + self.cot_loss_weight_mixing * cot_loss
             return loss, (logits, cot_loss)
@@ -237,10 +237,10 @@ class Trainer:
                 cot_sampling=True,
                 rngs={"dropout": dropout_key},
             )
-            supervised_loss = cross_entropy_loss(logits=logits, labels=labels)
+            supervised_loss = cross_entropy_loss(logits, labels)
 
             rewards = jax.lax.stop_gradient(-cross_entropy_loss(logits, labels, mean=False))
-            cot_all_log_prob = jax.nn.log_softmax(cot_logits)
+            cot_all_log_prob = jax.nn.log_softmax(cot_logits, axis=-1)
             cot_log_prob = jnp.take_along_axis(
                 cot_all_log_prob, cot_tokens[..., None], axis=-1
             ).squeeze(-1)
@@ -576,19 +576,21 @@ if __name__ == "__main__":
     #     num_iterations=100_000,
     #     run_name=f"Cycle 3-40 SUPERVISED_mode T3 seed_{seed}",
     # )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=3,
-        seq_length=40,
-        cot_module=True,
-        cot_seq_length=3,
-        cot_vocab_size=40,
-        batch_size=256,
-        log_every=500,
-        num_iterations=100_000,
-        run_name="Cycle 3-40 RL_mode AT1",
-    )
+    for seed in range(3):
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=3,
+            seq_length=40,
+            cot_module=True,
+            cot_seq_length=3,
+            cot_vocab_size=40,
+            batch_size=256,
+            log_every=500,
+            num_iterations=1_000_000,
+            seed=seed,
+            run_name=f"Cycle 3-40 RL_mode AT1 seed_{seed}",
+        )
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.COT,
