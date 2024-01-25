@@ -636,6 +636,20 @@ if __name__ == "__main__":
             seed=seed,
             run_name=f"Cycle 3-40 SUPERVISED_mode T3 seed_{seed}",
         )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=3,
+        seq_length=40,
+        cot_module=True,
+        cot_seq_length=3,
+        cot_vocab_size=40,
+        batch_size=256,
+        log_every=500,
+        num_iterations=1_000_000,
+        seed=2,
+        run_name="Cycle 3-40 RL_mode AT1 seed_2",
+    )
 
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
