@@ -17,8 +17,9 @@
 - [x]: implement transformer with chain of thought
 - [ ]: implement learning rate warmup
 - [x]: add training on Cycle env (+ find good difficulty)
-- [ ]: implement chain of thought training
-- [ ]: implement RL training
+- [x]: implement chain of thought training
+- [x]: implement RL training
+- [ ]: implement variance reduction for RL training (e.g. using a baseline)
 
 ## Questions
 

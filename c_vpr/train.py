@@ -510,6 +510,12 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     wandb.config.num_iterations = num_iterations
     wandb.config.batch_size = batch_size
     wandb.config.eval_size = eval_size
+    wandb.config.cot_module = cot_module
+    wandb.config.seed = seed
+    wandb.config.mode = mode.name
+    wandb.config.cot_loss_weight_mixing = cot_loss_weight_mixing
+    wandb.config.rl_loss_weight_mixing = rl_loss_weight_mixing
+    wandb.config.decode_from_sampled_cot_tokens = decode_from_sampled_cot_tokens
 
     trainer = Trainer(
         model,
@@ -577,79 +583,94 @@ if __name__ == "__main__":
     #     run_name=f"Cycle 3-40 SUPERVISED_mode T3 seed_{seed}",
     # )
     for seed in range(3):
-        # run_augmented_transformer_exp(
-        #     env_name="Cycle",
-        #     mode=MODE.RL,
-        #     train_num_hops=3,
-        #     seq_length=40,
-        #     cot_module=True,
-        #     cot_seq_length=3,
-        #     cot_vocab_size=40,
-        #     batch_size=256,
-        #     log_every=500,
-        #     num_iterations=1_000_000,
-        #     seed=seed,
-        #     run_name=f"Cycle 3-40 RL_mode AT1 seed_{seed}",
-        # )
         run_augmented_transformer_exp(
             env_name="Cycle",
             mode=MODE.SUPERVISED,
-            train_num_hops=3,
+            train_num_hops=4,
             seq_length=40,
             encoder_cross_transformer_num_layers=1,
             cot_module=False,
-            cot_seq_length=3,
+            cot_seq_length=4,
             cot_vocab_size=40,
             batch_size=256,
             log_every=500,
             num_iterations=1_000_000,
             seed=seed,
-            run_name=f"Cycle 3-40 SUPERVISED_mode T1 seed_{seed}",
+            run_name=f"Cycle 4-40 SUPERVISED_mode T1 seed_{seed}",
+        )
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=4,
+            seq_length=40,
+            cot_module=True,
+            cot_seq_length=4,
+            cot_vocab_size=40,
+            batch_size=256,
+            log_every=500,
+            num_iterations=1_000_000,
+            seed=seed,
+            run_name=f"Cycle 4-40 RL_mode AT1 seed_{seed}",
+        )
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.COT,
+            train_num_hops=4,
+            seq_length=40,
+            cot_module=True,
+            cot_seq_length=4,
+            cot_vocab_size=40,
+            batch_size=256,
+            log_every=500,
+            num_iterations=1_000_000,
+            seed=seed,
+            run_name=f"Cycle 4-40 COT_mode AT1 seed_{seed}",
         )
         run_augmented_transformer_exp(
             env_name="Cycle",
             mode=MODE.SUPERVISED,
-            train_num_hops=3,
+            train_num_hops=4,
             seq_length=40,
             encoder_cross_transformer_num_layers=2,
             cot_module=False,
-            cot_seq_length=3,
+            cot_seq_length=4,
             cot_vocab_size=40,
             batch_size=256,
             log_every=500,
             num_iterations=1_000_000,
             seed=seed,
-            run_name=f"Cycle 3-40 SUPERVISED_mode T2 seed_{seed}",
+            run_name=f"Cycle 4-40 SUPERVISED_mode T2 seed_{seed}",
+        )
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=4,
+            seq_length=40,
+            encoder_cross_transformer_num_layers=2,
+            cot_module=True,
+            cot_seq_length=4,
+            cot_vocab_size=40,
+            batch_size=256,
+            log_every=500,
+            num_iterations=1_000_000,
+            seed=seed,
+            run_name=f"Cycle 4-40 RL_mode AT2 seed_{seed}",
         )
         run_augmented_transformer_exp(
             env_name="Cycle",
             mode=MODE.SUPERVISED,
-            train_num_hops=3,
+            train_num_hops=4,
             seq_length=40,
             encoder_cross_transformer_num_layers=3,
             cot_module=False,
-            cot_seq_length=3,
+            cot_seq_length=4,
             cot_vocab_size=40,
             batch_size=256,
             log_every=500,
             num_iterations=1_000_000,
             seed=seed,
-            run_name=f"Cycle 3-40 SUPERVISED_mode T3 seed_{seed}",
+            run_name=f"Cycle 4-40 SUPERVISED_mode T3 seed_{seed}",
         )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=3,
-        seq_length=40,
-        cot_module=True,
-        cot_seq_length=3,
-        cot_vocab_size=40,
-        batch_size=256,
-        log_every=500,
-        num_iterations=1_000_000,
-        seed=2,
-        run_name="Cycle 3-40 RL_mode AT1 seed_2",
-    )
 
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
