@@ -45,6 +45,7 @@ class Trainer:
         cot_start_token: Optional[int] = None,
         cot_loss_weight_mixing: float = 1.0,
         rl_loss_weight_mixing: float = 1.0,
+        rl_baseline_batch_size: Optional[int] = None,
         decode_from_sampled_cot_tokens: bool = False,
     ) -> None:
         self.model = model
@@ -71,6 +72,7 @@ class Trainer:
         self.eval_size = eval_size
         self.cot_loss_weight_mixing = cot_loss_weight_mixing
         self.rl_loss_weight_mixing = rl_loss_weight_mixing
+        self.rl_baseline_batch_size = rl_baseline_batch_size
         self.decode_from_sampled_cot_tokens = decode_from_sampled_cot_tokens
 
     def init_train_state(
@@ -229,6 +231,7 @@ class Trainer:
         inputs, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
 
         def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
+            # TODO: vmap the forward below to compute a baseline for each sample.
             logits, (cot_tokens, cot_logits) = state.apply_fn(
                 variables={"params": params},
                 inputs=inputs,
@@ -238,8 +241,36 @@ class Trainer:
                 rngs={"dropout": dropout_key},
             )
             supervised_loss = cross_entropy_loss(logits, labels)
-
             rewards = jax.lax.stop_gradient(-cross_entropy_loss(logits, labels, mean=False))
+
+            if self.rl_baseline_batch_size is not None:
+
+                def baseline_apply(
+                    inputs: chex.Array, cot_key: chex.PRNGKey
+                ) -> tuple[chex.Array, tuple[chex.Array, chex.Array]]:
+                    return state.apply_fn(  # type: ignore
+                        variables={"params": params},
+                        inputs=inputs,
+                        deterministic=False,
+                        cot_key=cot_key,
+                        cot_sampling=True,
+                        rngs={"dropout": dropout_key},
+                    )
+
+                b_cot_keys = jax.random.split(cot_key, self.rl_baseline_batch_size)
+                b_logits, _ = jax.vmap(baseline_apply)(
+                    inputs[None].repeat(self.rl_baseline_batch_size, axis=0), b_cot_keys
+                )
+                b_rewards = jax.lax.stop_gradient(
+                    -cross_entropy_loss(
+                        b_logits,
+                        labels[None].repeat(self.rl_baseline_batch_size, axis=0),
+                        mean=False,
+                    )
+                )
+                # Subtract the mean of the baseline rewards.
+                rewards -= jnp.mean(b_rewards, axis=0)
+
             cot_all_log_prob = jax.nn.log_softmax(cot_logits, axis=-1)
             cot_log_prob = jnp.take_along_axis(
                 cot_all_log_prob, cot_tokens[..., None], axis=-1
@@ -397,6 +428,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     all_dropouts_rate: float = 0.0,
     cot_loss_weight_mixing: float = 1.0,
     rl_loss_weight_mixing: float = 1.0,
+    rl_baseline_batch_size: Optional[int] = None,
     decode_from_sampled_cot_tokens: bool = False,
     learning_rate: float = 3e-4,
     num_iterations: int = 100_000,
@@ -529,6 +561,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
         cot_start_token=cot_module_config.cot_vocab_size if cot_module_config else None,
         cot_loss_weight_mixing=cot_loss_weight_mixing,
         rl_loss_weight_mixing=rl_loss_weight_mixing,
+        rl_baseline_batch_size=rl_baseline_batch_size,
         decode_from_sampled_cot_tokens=decode_from_sampled_cot_tokens,
     )
     key = jax.random.PRNGKey(seed)
@@ -541,6 +574,66 @@ def run_augmented_transformer_exp(  # noqa: CCR001
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=3,
+        seq_length=40,
+        cot_module=True,
+        cot_seq_length=3,
+        cot_vocab_size=40,
+        batch_size=256,
+        log_every=500,
+        num_iterations=100_000,
+        rl_baseline_batch_size=8,
+        run_name="Cycle 3-40 RL_mode AT1 baseline_8",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=3,
+        seq_length=40,
+        cot_module=True,
+        cot_seq_length=3,
+        cot_vocab_size=40,
+        batch_size=256,
+        log_every=500,
+        num_iterations=100_000,
+        rl_baseline_batch_size=2,
+        run_name="Cycle 3-40 RL_mode AT1 baseline_2",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=3,
+        seq_length=40,
+        cot_module=True,
+        cot_seq_length=3,
+        cot_vocab_size=40,
+        batch_size=256,
+        log_every=500,
+        num_iterations=100_000,
+        rl_baseline_batch_size=32,
+        run_name="Cycle 3-40 RL_mode AT1 baseline_32",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=3,
+        seq_length=40,
+        cot_module=True,
+        cot_seq_length=3,
+        cot_vocab_size=40,
+        batch_size=256,
+        log_every=500,
+        num_iterations=100_000,
+        rl_baseline_batch_size=4,
+        run_name="Cycle 3-40 RL_mode AT1 baseline_4",
+    )
+
+    import sys
+
+    sys.exit()
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.SUPERVISED,
