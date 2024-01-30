@@ -584,7 +584,7 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         batch_size=256,
         log_every=500,
-        num_iterations=1_000_000,
+        num_iterations=500_000,
         rl_baseline_batch_size=8,
         run_name="Cycle 3-40 RL_mode AT1 baseline_8",
     )
@@ -598,7 +598,7 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         batch_size=256,
         log_every=500,
-        num_iterations=1_000_000,
+        num_iterations=500_000,
         rl_baseline_batch_size=2,
         run_name="Cycle 3-40 RL_mode AT1 baseline_2",
     )
@@ -612,7 +612,7 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         batch_size=256,
         log_every=500,
-        num_iterations=1_000_000,
+        num_iterations=500_000,
         rl_baseline_batch_size=None,
         run_name="Cycle 3-40 RL_mode AT1 no_baseline",
     )
@@ -626,7 +626,7 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         batch_size=256,
         log_every=500,
-        num_iterations=1_000_000,
+        num_iterations=500_000,
         rl_baseline_batch_size=32,
         run_name="Cycle 3-40 RL_mode AT1 baseline_32",
     )
@@ -640,7 +640,7 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         batch_size=256,
         log_every=500,
-        num_iterations=1_000_000,
+        num_iterations=500_000,
         rl_baseline_batch_size=4,
         run_name="Cycle 3-40 RL_mode AT1 baseline_4",
     )

@@ -19,7 +19,9 @@
 - [x]: add training on Cycle env (+ find good difficulty)
 - [x]: implement chain of thought training
 - [x]: implement RL training
-- [ ]: implement variance reduction for RL training (e.g. using a baseline)
+- [x]: implement variance reduction for RL training (e.g. using a baseline)
+- [ ]: log cot policy entropy
+
 
 ## Questions
 
