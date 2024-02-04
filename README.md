@@ -15,7 +15,7 @@
 - [ ]: add gradient accumulation to allow abritrary high batch sizes
 - [x]: implement cycle env
 - [x]: implement transformer with chain of thought
-- [ ]: implement learning rate warmup
+- [x]: implement learning rate warmup
 - [x]: add training on Cycle env (+ find good difficulty)
 - [x]: implement chain of thought training
 - [x]: implement RL training

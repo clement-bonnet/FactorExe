@@ -91,7 +91,7 @@ class Trainer:
             init_value=learning_rate / (warmup_steps + 1),
             peak_value=learning_rate,
             warmup_steps=warmup_steps,
-            transition_steps=0,
+            transition_steps=1,
             end_value=learning_rate,
             decay_rate=1.0,
         )
