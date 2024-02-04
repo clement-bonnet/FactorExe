@@ -144,11 +144,13 @@ class Trainer:
         )
         sample_keys = jax.random.split(sample_key, self.batch_size)
         inputs, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
+        task_num_hops = jnp.take(self.train_num_hops, num_hops_indices)  # TODO: fix this.
 
         def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
             logits, _ = state.apply_fn(
                 variables={"params": params},
                 inputs=inputs,
+                num_hops=task_num_hops,
                 deterministic=False,
                 rngs={"dropout": dropout_key},
             )
@@ -587,17 +589,17 @@ if __name__ == "__main__":
     # Selected Cycle difficulties: []
     run_augmented_transformer_exp(
         env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=3,
+        mode=MODE.SUPERVISED,
+        train_num_hops=[1, 2, 3, 4, 5],
+        eval_num_hops=[1, 2, 3, 4, 5],
         seq_length=40,
-        cot_module=True,
+        cot_module=False,
         cot_seq_length=3,
         cot_vocab_size=40,
         batch_size=256,
-        log_every=500,
+        log_every=50,
         num_iterations=500_000,
-        rl_baseline_batch_size=8,
-        run_name="Cycle 3-40 RL_mode AT1 baseline_8",
+        run_name="Cycle 3-40 SUPERVISED_mode AT1",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",

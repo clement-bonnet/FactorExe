@@ -25,6 +25,7 @@ class CoTModuleConfig:
     cot_cross_transformer_config: TransformerConfig
     cot_seq_length: int
     cot_vocab_size: int
+    max_num_hops: Optional[int] = None
     use_bias: bool = False
     dtype: Any = jnp.float32
 
@@ -35,6 +36,7 @@ class EncoderConfig:
     cot_seq_length: Optional[int]
     cot_vocab_size: Optional[int]
     input_cross_transformer_config: TransformerConfig
+    max_num_hops: Optional[int] = None
     use_bias: bool = False
     dtype: Any = jnp.float32
 
@@ -53,6 +55,11 @@ class CoTModule(nn.Module):
             num_embeddings=self.config.input_transformer_config.max_len,
             features=self.config.input_transformer_config.emb_dim,
             name="pos_embed",
+        )
+        self.num_hops_embed = nn.Embed(
+            num_embeddings=self.config.max_num_hops,
+            features=self.config.input_transformer_config.emb_dim,
+            name="num_hops_embed",
         )
         self.inputs_dropout = nn.Dropout(rate=self.config.input_transformer_config.dropout_rate)
         self.input_transformer_layers = [
@@ -88,16 +95,24 @@ class CoTModule(nn.Module):
         *,
         inputs: chex.Array,
         deterministic: bool,
+        num_hops: Optional[chex.Array] = None,
         pad_mask: Optional[chex.Array] = None,
     ) -> chex.Array:
         input_transformer_config = self.config.input_transformer_config
 
         # Input embedding block.
         assert inputs.ndim == 2  # (B, T)
-        inputs = inputs.astype("int32")
-        tok_embed = self.inputs_tok_embed(inputs)
+        tok_embed = self.inputs_tok_embed(inputs.astype("int32"))
         pos_embed = self.inputs_pos_embed(jnp.arange(input_transformer_config.max_len))
         inputs_embeddings = tok_embed + pos_embed
+        # Concatenate the number of hops to the input embeddings.
+        if num_hops is not None:
+            assert num_hops.ndim == 1  # (B,)
+            num_hops = num_hops.astype("int32") - 1  # num hops is 1-indexed
+            num_hops_embedding = self.num_hops_embed(num_hops[:, None])
+            inputs_embeddings = jnp.concatenate([inputs_embeddings, num_hops_embedding], axis=-1)
+            if pad_mask is not None:
+                pad_mask = jnp.concatenate([pad_mask, jnp.ones_like(pad_mask[:, 0:1])], axis=-1)
         inputs_embeddings = self.inputs_dropout(inputs_embeddings, deterministic=deterministic)
 
         # Input encoder block.
@@ -116,6 +131,7 @@ class CoTModule(nn.Module):
         *,
         inputs: chex.Array,
         deterministic: bool,
+        num_hops: Optional[chex.Array] = None,
         pad_mask: Optional[chex.Array] = None,
         cot_sampling: bool = False,
         cot_key: Optional[chex.PRNGKey] = None,
@@ -123,22 +139,24 @@ class CoTModule(nn.Module):
         """Applies Transformer model on the inputs.
 
         Args:
-          inputs: input data as tokens.
-          deterministic: if false dropout is applied otherwise it is not.
-          pad_mask: mask to apply on the inputs to avoid attending to padding tokens.
-          cot_sampling: if true, sample tokens in the forward pass. Otherwise, use argmax.
-          cot_key: random key to sample tokens in the forward pass.
+            inputs: input data as tokens.
+            deterministic: if false dropout is applied otherwise it is not.
+            num_hops: number of hops associated to the inputs.
+            pad_mask: mask to apply on the inputs to avoid attending to padding tokens.
+            cot_sampling: if true, sample tokens in the forward pass. Otherwise, use argmax.
+            cot_key: random key to sample tokens in the forward pass.
 
         Returns:
-          chain of thoughts tokens of shape (B, T_C) representing a sequence of tokens,
-          logits of shape (B, T_C, V) representing a sequence of logits.
+            chain of thoughts tokens of shape (B, T_C) representing a sequence of tokens,
+            logits of shape (B, T_C, V) representing a sequence of logits.
 
         Remark:
-          could also output a chain of shape (B, T_C, H) representing a sequence of cot embeddings.
+            could also output a chain of shape (B, T_C, H) representing a sequence of cot
+                embeddings.
         """
         config = self.config
         inputs_embeddings = self.encode_inputs(
-            inputs=inputs, deterministic=deterministic, pad_mask=pad_mask
+            inputs=inputs, deterministic=deterministic, num_hops=num_hops, pad_mask=pad_mask
         )
 
         # CoT autoregressive block.
@@ -235,26 +253,27 @@ class Encoder(nn.Module):
         inputs: chex.Array,
         cot_tokens: Optional[chex.Array],
         deterministic: bool,
+        num_hops: Optional[chex.Array] = None,
         inputs_pad_mask: Optional[chex.Array] = None,
         cot_pad_mask: Optional[chex.Array] = None,
     ) -> chex.Array:
         """Applies Transformer model on the inputs.
 
         Args:
-          inputs: input data as tokens.
-          cot_tokens: chain of thought tokens from the cot module.
-          deterministic: if false dropout is applied otherwise it is not.
-          inputs_pad_mask: mask to apply on the inputs to avoid attending to padding tokens.
-          cot_pad_mask: mask to apply on the cot to avoid attending to padding tokens.
+            inputs: input data as tokens.
+            cot_tokens: chain of thought tokens from the cot module.
+            deterministic: if false dropout is applied otherwise it is not.
+            num_hops: number of hops associated to the inputs.
+            inputs_pad_mask: mask to apply on the inputs to avoid attending to padding tokens.
+            cot_pad_mask: mask to apply on the cot to avoid attending to padding tokens.
 
         Returns:
-          output of shape (B, V) representing a sequence of logits.
+            output of shape (B, V) representing a sequence of logits.
         """
         # CoT embedding block.
         cot_transformer_config = self.config.cot_transformer_config
         if cot_tokens is not None:
             assert cot_tokens.ndim == 2  # (B, T_C)
-            cot_tokens = cot_tokens.astype("int32")
             assert cot_transformer_config is not None
             assert self.config.cot_seq_length is not None
             assert self.config.cot_vocab_size is not None
@@ -262,7 +281,7 @@ class Encoder(nn.Module):
                 num_embeddings=self.config.cot_vocab_size,
                 features=cot_transformer_config.emb_dim,
                 name="cot_tok_embed",
-            )(cot_tokens)
+            )(cot_tokens.astype("int32"))
             cot_pos_embed = nn.Embed(
                 num_embeddings=self.config.cot_seq_length,
                 features=cot_transformer_config.emb_dim,
@@ -287,18 +306,31 @@ class Encoder(nn.Module):
         # Input embedding block.
         input_cross_transformer_config = self.config.input_cross_transformer_config
         assert inputs.ndim == 2  # (B, T)
-        inputs = inputs.astype("int32")
         tok_embed = nn.Embed(
             num_embeddings=input_cross_transformer_config.vocab_size,
             features=input_cross_transformer_config.emb_dim,
             name="tok_embed",
-        )(inputs)
+        )(inputs.astype("int32"))
         pos_embed = nn.Embed(
             num_embeddings=input_cross_transformer_config.max_len,
             features=input_cross_transformer_config.emb_dim,
             name="pos_embed",
         )(jnp.arange(input_cross_transformer_config.max_len))
         x = tok_embed + pos_embed
+        # Concatenate the number of hops to the input embeddings.
+        if num_hops is not None:
+            assert num_hops.ndim == 1  # (B,)
+            num_hops = num_hops.astype("int32") - 1  # num hops is 1-indexed
+            num_hops_embedding = nn.Embed(
+                num_embeddings=self.config.max_num_hops,
+                features=input_cross_transformer_config.emb_dim,
+                name="num_hops_embed",
+            )(num_hops[:, None])
+            x = jnp.concatenate([x, num_hops_embedding], axis=-1)
+            if inputs_pad_mask is not None:
+                inputs_pad_mask = jnp.concatenate(
+                    [inputs_pad_mask, jnp.ones_like(inputs_pad_mask[:, 0:1])], axis=-1
+                )
         x = nn.Dropout(rate=input_cross_transformer_config.dropout_rate)(
             x, deterministic=deterministic
         )
@@ -396,6 +428,7 @@ class AugmentedTransformer(nn.Module):
         *,
         inputs: chex.Array,
         deterministic: bool,
+        num_hops: Optional[chex.Array] = None,
         pad_mask: Optional[chex.Array] = None,
         cot_sampling: bool = False,
         cot_key: Optional[chex.PRNGKey] = None,
@@ -403,20 +436,22 @@ class AugmentedTransformer(nn.Module):
         """Applies AugmentedTransformer model on the inputs.
 
         Args:
-          inputs: input data
-          deterministic: if false dropout is applied otherwise it is not.
-          pad_mask: mask to apply on the inputs to avoid attending to padding tokens.
-          cot_sampling: if true, sample tokens in the CoT Module. Otherwise, use argmax.
-          cot_key: random key to sample tokens in the CoT Module.
+            inputs: input data
+            deterministic: if false dropout is applied otherwise it is not.
+            num_hops: number of hops associated to the inputs.
+            pad_mask: mask to apply on the inputs to avoid attending to padding tokens.
+            cot_sampling: if true, sample tokens in the CoT Module. Otherwise, use argmax.
+            cot_key: random key to sample tokens in the CoT Module.
 
         Returns:
-          output of an augmented transformer.
+            output of an augmented transformer.
         """
         # CoT Module block.
         if self.cot_module is not None:
             cot_tokens, cot_logits = self.cot_module(
                 inputs=inputs,
                 deterministic=deterministic,
+                num_hops=num_hops,
                 pad_mask=pad_mask,
                 cot_sampling=cot_sampling,
                 cot_key=cot_key,
@@ -429,6 +464,7 @@ class AugmentedTransformer(nn.Module):
             inputs=inputs,
             cot_tokens=cot_tokens,
             deterministic=deterministic,
+            num_hops=num_hops,
             inputs_pad_mask=pad_mask,
             cot_pad_mask=None,
         )

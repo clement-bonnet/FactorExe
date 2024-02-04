@@ -21,6 +21,9 @@
 - [x]: implement RL training
 - [x]: implement variance reduction for RL training (e.g. using a baseline)
 - [ ]: log cot policy entropy
+- [ ]: implement CLS token (instead of mean embedding output)
+- [ ]: pass num_hops as input (in case of curriculum learning)
+- [ ]: extend the COT chain to include the last hop (the label)
 
 
 ## Questions
