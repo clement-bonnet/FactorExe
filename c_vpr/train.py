@@ -86,7 +86,18 @@ class Trainer:
         if verbose:
             num_params = sum(x.size for x in jax.tree_util.tree_leaves(params))
             logging.info("Number of parameters: {:,}".format(num_params))
-        optimizer = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(learning_rate))
+        warmup_steps = 99
+        linear_warmup_scheduler = optax.warmup_exponential_decay_schedule(
+            init_value=learning_rate / (warmup_steps + 1),
+            peak_value=learning_rate,
+            warmup_steps=warmup_steps,
+            transition_steps=0,
+            end_value=learning_rate,
+            decay_rate=1.0,
+        )
+        optimizer = optax.chain(
+            optax.clip_by_global_norm(1.0), optax.adamw(linear_warmup_scheduler)
+        )
         apply_fn = jax.jit(
             self.model.apply, static_argnames=["deterministic", "cot_sampling", "method"]
         )
