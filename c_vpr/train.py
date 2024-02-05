@@ -623,8 +623,8 @@ if __name__ == "__main__":
         log_every=1,
         num_iterations=200,
         classification_mode="cls_token",
-        decode_from_sampled_cot_tokens=False,
-        run_name="Cycle 10-40 COT_mode",
+        decode_from_sampled_cot_tokens=True,
+        run_name="Cycle 10-40 COT_mode decode_from_sampled_cot_tokens",
     )
     import sys
 
