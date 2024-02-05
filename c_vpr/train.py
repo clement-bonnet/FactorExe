@@ -471,11 +471,11 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     assert classification_mode in ["cls_token", "mean_embedding"]
     if cot_module:
         if mode in [MODE.COT, MODE.RL] and isinstance(train_num_hops, int):
-            if cot_seq_length != train_num_hops:
+            if cot_seq_length != train_num_hops + 1:
                 raise ValueError(
                     f"cot_seq_length ({cot_seq_length}) is different from train_num_hops "
-                    f"({train_num_hops}), which means that the chain of thought sequence and the "
-                    "chain of thoughts labels have different lengths. This is not supported yet."
+                    f"({train_num_hops}) + 1, which means that the chain of thought sequence and "
+                    "the chain of thoughts labels have different lengths. This is not supported yet"
                 )
             if cot_vocab_size != seq_length:
                 raise ValueError(
@@ -610,19 +610,19 @@ if __name__ == "__main__":
     # Selected Cycle difficulties: []
     run_augmented_transformer_exp(
         env_name="Cycle",
-        mode=MODE.SUPERVISED,
-        train_num_hops=[1, 2, 3, 4, 5],
-        eval_num_hops=[1, 2, 3, 4, 5],
+        mode=MODE.COT,
+        train_num_hops=3,
+        # eval_num_hops=[1, 2, 3, 4, 5],
         seq_length=40,
-        encoder_cross_transformer_num_repeat=2,
-        cot_module=False,
-        cot_seq_length=3,
+        encoder_cross_transformer_num_layers=2,
+        cot_module=True,
+        cot_seq_length=4,
         cot_vocab_size=40,
         batch_size=256,
         log_every=50,
         num_iterations=500_000,
         classification_mode="cls_token",
-        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED_mode T1-2",
+        run_name="Cycle [1,2,3,4,5]-40 COT_mode test",
     )
     import sys
 

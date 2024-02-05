@@ -44,7 +44,7 @@ class Cycle(Env):
         sequence = jnp.empty_like(permutation)
         sequence = sequence.at[permutation].set(jnp.roll(permutation, -1))
         if return_cot:
-            cot = jnp.roll(permutation, -zero_index - 1)[:num_hops]
+            cot = jnp.roll(permutation, -zero_index - 1)[: num_hops + 1]
             if return_target:
                 return sequence, cot, target
             else:
