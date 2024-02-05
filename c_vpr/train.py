@@ -335,6 +335,7 @@ class Trainer:
                 variables={"params": state.params},
                 inputs=inputs,
                 deterministic=True,
+                num_hops=jnp.full((self.eval_size,), num_hops),
                 cot_key=cot_key,
                 cot_sampling=cot_sampling,
             )
