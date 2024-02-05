@@ -611,18 +611,19 @@ if __name__ == "__main__":
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.COT,
-        train_num_hops=3,
+        train_num_hops=10,
         # eval_num_hops=[1, 2, 3, 4, 5],
         seq_length=40,
-        encoder_cross_transformer_num_layers=2,
         cot_module=True,
-        cot_seq_length=4,
+        cot_module_input_encoder_num_repeat = 0,
+        encoder_cot_encoder_num_repeat = 0,
+        cot_seq_length=7,
         cot_vocab_size=40,
         batch_size=256,
         log_every=50,
-        num_iterations=500_000,
+        num_iterations=50_000,
         classification_mode="cls_token",
-        run_name="Cycle [1,2,3,4,5]-40 COT_mode test",
+        run_name="Cycle 10-40 COT_mode",
     )
     import sys
 
