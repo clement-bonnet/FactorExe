@@ -612,7 +612,7 @@ if __name__ == "__main__":
         env_name="Cycle",
         mode=MODE.COT,
         train_num_hops=10,
-        # eval_num_hops=[1, 2, 3, 4, 5],
+        eval_num_hops=10,
         seq_length=40,
         cot_module=True,
         cot_module_input_encoder_num_repeat = 0,
@@ -623,6 +623,7 @@ if __name__ == "__main__":
         log_every=50,
         num_iterations=50_000,
         classification_mode="cls_token",
+        decode_from_sampled_cot_tokens=False,
         run_name="Cycle 10-40 COT_mode",
     )
     import sys
