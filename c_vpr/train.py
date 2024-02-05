@@ -82,7 +82,9 @@ class Trainer:
         verbose: bool = True,
     ) -> TrainState:
         inputs = jnp.zeros((1, self.seq_length), int)
-        params = self.model.init(key, inputs=inputs, deterministic=True)["params"]
+        params = self.model.init(key, inputs=inputs, deterministic=True, num_hops=jnp.array([1]))[
+            "params"
+        ]
         if verbose:
             num_params = sum(x.size for x in jax.tree_util.tree_leaves(params))
             logging.info("Number of parameters: {:,}".format(num_params))
@@ -144,7 +146,7 @@ class Trainer:
         )
         sample_keys = jax.random.split(sample_key, self.batch_size)
         inputs, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
-        task_num_hops = jnp.take(self.train_num_hops, num_hops_indices)  # TODO: fix this.
+        task_num_hops = jnp.take(jnp.asarray(self.train_num_hops), num_hops_indices)
 
         def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
             logits, _ = state.apply_fn(
@@ -451,6 +453,21 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     seed: int = 0,
     run_name: Optional[str] = None,
 ) -> None:
+    if isinstance(train_num_hops, list):
+        max_num_hops = max(train_num_hops)
+        if isinstance(eval_num_hops, list):
+            max_num_hops = max(max_num_hops, max(eval_num_hops))
+        elif isinstance(eval_num_hops, int):
+            max_num_hops = max(max_num_hops, eval_num_hops)
+    elif isinstance(train_num_hops, int):
+        max_num_hops = train_num_hops
+        if isinstance(eval_num_hops, list):
+            max_num_hops = max(max_num_hops, max(eval_num_hops))
+        elif isinstance(eval_num_hops, int):
+            max_num_hops = max(max_num_hops, eval_num_hops)
+    else:
+        raise ValueError(f"Unknown type for train_num_hops: {type(train_num_hops)}")
+
     if cot_module:
         if mode in [MODE.COT, MODE.RL] and isinstance(train_num_hops, int):
             if cot_seq_length != train_num_hops:
@@ -491,6 +508,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
             ),
             cot_seq_length=cot_seq_length,
             cot_vocab_size=cot_vocab_size,
+            max_num_hops=max_num_hops,
         )
     else:
         if mode != MODE.SUPERVISED:
@@ -527,6 +545,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
             dropout_rate=all_dropouts_rate,
             attention_dropout_rate=all_dropouts_rate,
         ),
+        max_num_hops=max_num_hops,
     )
     model = AugmentedTransformer(
         cot_module_config,
@@ -599,8 +618,12 @@ if __name__ == "__main__":
         batch_size=256,
         log_every=50,
         num_iterations=500_000,
-        run_name="Cycle 3-40 SUPERVISED_mode AT1",
+        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED_mode",
     )
+    import sys
+
+    sys.exit()
+
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
@@ -658,9 +681,6 @@ if __name__ == "__main__":
         run_name="Cycle 3-40 RL_mode AT1 baseline_4",
     )
 
-    import sys
-
-    sys.exit()
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.SUPERVISED,

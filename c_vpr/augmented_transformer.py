@@ -56,11 +56,12 @@ class CoTModule(nn.Module):
             features=self.config.input_transformer_config.emb_dim,
             name="pos_embed",
         )
-        self.num_hops_embed = nn.Embed(
-            num_embeddings=self.config.max_num_hops,
-            features=self.config.input_transformer_config.emb_dim,
-            name="num_hops_embed",
-        )
+        if self.config.max_num_hops is not None:
+            self.num_hops_embed = nn.Embed(
+                num_embeddings=self.config.max_num_hops,
+                features=self.config.input_transformer_config.emb_dim,
+                name="num_hops_embed",
+            )
         self.inputs_dropout = nn.Dropout(rate=self.config.input_transformer_config.dropout_rate)
         self.input_transformer_layers = [
             TransformerLayer(self.config.input_transformer_config)
@@ -108,9 +109,10 @@ class CoTModule(nn.Module):
         # Concatenate the number of hops to the input embeddings.
         if num_hops is not None:
             assert num_hops.ndim == 1  # (B,)
+            assert self.config.max_num_hops is not None
             num_hops = num_hops.astype("int32") - 1  # num hops is 1-indexed
             num_hops_embedding = self.num_hops_embed(num_hops[:, None])
-            inputs_embeddings = jnp.concatenate([inputs_embeddings, num_hops_embedding], axis=-1)
+            inputs_embeddings = jnp.concatenate([inputs_embeddings, num_hops_embedding], axis=-2)
             if pad_mask is not None:
                 pad_mask = jnp.concatenate([pad_mask, jnp.ones_like(pad_mask[:, 0:1])], axis=-1)
         inputs_embeddings = self.inputs_dropout(inputs_embeddings, deterministic=deterministic)
@@ -241,6 +243,12 @@ class Encoder(nn.Module):
                 TransformerLayer(self.config.cot_transformer_config)
                 for _ in range(self.config.cot_transformer_config.num_layers)
             ]
+        if self.config.max_num_hops is not None:
+            self.num_hops_embed = nn.Embed(
+                num_embeddings=self.config.max_num_hops,
+                features=self.config.input_cross_transformer_config.emb_dim,
+                name="num_hops_embed",
+            )
         self.input_cross_transformer_layers = [
             CrossTransformerLayer(self.config.input_cross_transformer_config)
             for _ in range(self.config.input_cross_transformer_config.num_layers)
@@ -320,13 +328,10 @@ class Encoder(nn.Module):
         # Concatenate the number of hops to the input embeddings.
         if num_hops is not None:
             assert num_hops.ndim == 1  # (B,)
+            assert self.config.max_num_hops is not None
             num_hops = num_hops.astype("int32") - 1  # num hops is 1-indexed
-            num_hops_embedding = nn.Embed(
-                num_embeddings=self.config.max_num_hops,
-                features=input_cross_transformer_config.emb_dim,
-                name="num_hops_embed",
-            )(num_hops[:, None])
-            x = jnp.concatenate([x, num_hops_embedding], axis=-1)
+            num_hops_embedding = self.num_hops_embed(num_hops[:, None])
+            x = jnp.concatenate([x, num_hops_embedding], axis=-2)
             if inputs_pad_mask is not None:
                 inputs_pad_mask = jnp.concatenate(
                     [inputs_pad_mask, jnp.ones_like(inputs_pad_mask[:, 0:1])], axis=-1
@@ -372,11 +377,12 @@ class AugmentedTransformer(nn.Module):
         inputs: chex.Array,
         cot_tokens: chex.Array,
         deterministic: bool,
+        num_hops: Optional[chex.Array] = None,
         inputs_pad_mask: Optional[chex.Array] = None,
     ) -> chex.Array:
         assert self.cot_module is not None
         inputs_embeddings = self.cot_module.encode_inputs(
-            inputs=inputs, deterministic=deterministic, pad_mask=inputs_pad_mask
+            inputs=inputs, deterministic=deterministic, num_hops=num_hops, pad_mask=inputs_pad_mask
         )
         cot_logits = self.cot_module.generate_logits(
             cot_tokens=cot_tokens,
@@ -384,6 +390,7 @@ class AugmentedTransformer(nn.Module):
             deterministic=deterministic,
             inputs_pad_mask=inputs_pad_mask,
         )
+        # TODO: check if this is correct???
         cot_logits = cot_logits[:, :-1, :]  # do not need to train on the last token
         return cot_logits
 
@@ -392,6 +399,7 @@ class AugmentedTransformer(nn.Module):
         *,
         inputs: chex.Array,
         deterministic: bool,
+        num_hops: Optional[chex.Array] = None,
         pad_mask: Optional[chex.Array] = None,
         cot_sampling: bool = False,
         cot_key: Optional[chex.PRNGKey] = None,
@@ -400,6 +408,7 @@ class AugmentedTransformer(nn.Module):
         return self.cot_module(  # type: ignore
             inputs=inputs,
             deterministic=deterministic,
+            num_hops=num_hops,
             pad_mask=pad_mask,
             cot_sampling=cot_sampling,
             cot_key=cot_key,
@@ -411,6 +420,7 @@ class AugmentedTransformer(nn.Module):
         inputs: chex.Array,
         cot_tokens: Optional[chex.Array],
         deterministic: bool,
+        num_hops: Optional[chex.Array] = None,
         inputs_pad_mask: Optional[chex.Array] = None,
         cot_pad_mask: Optional[chex.Array] = None,
     ) -> chex.Array:
@@ -418,6 +428,7 @@ class AugmentedTransformer(nn.Module):
             inputs=inputs,
             cot_tokens=cot_tokens,
             deterministic=deterministic,
+            num_hops=num_hops,
             inputs_pad_mask=inputs_pad_mask,
             cot_pad_mask=cot_pad_mask,
         )
@@ -476,6 +487,7 @@ if __name__ == "__main__":
     seq_length = 10
     cot_seq_length = 5
     cot_vocab_size = 5
+    max_num_hops = 5
 
     cot_module_config = CoTModuleConfig(
         input_transformer_config=TransformerConfig(
@@ -504,6 +516,7 @@ if __name__ == "__main__":
         ),
         cot_seq_length=cot_seq_length,
         cot_vocab_size=cot_vocab_size,
+        max_num_hops=max_num_hops,
     )
     # cot_module_config = None
     encoder_config = EncoderConfig(
@@ -533,14 +546,16 @@ if __name__ == "__main__":
             dropout_rate=0.1,
             attention_dropout_rate=0.1,
         ),
+        max_num_hops=max_num_hops,
     )
     model = AugmentedTransformer(
         cot_module_config,
         encoder_config,
     )
     key = jax.random.PRNGKey(0)
-    example = jax.random.randint(key, (1, seq_length), minval=0, maxval=seq_length)
-    params = model.init(key, inputs=example, deterministic=True)
+    example = jax.random.randint(key, (2, seq_length), minval=0, maxval=seq_length)
+    num_hops = jnp.array([1, max_num_hops], int)
+    params = model.init(key, inputs=example, deterministic=True, num_hops=num_hops)
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(params))
     print("Number of parameters: {:,}".format(num_params))
     apply_fn = jax.jit(model.apply, static_argnames="deterministic")
@@ -548,5 +563,6 @@ if __name__ == "__main__":
         params,
         inputs=example,
         deterministic=False,
+        num_hops=num_hops,
         rngs={"dropout": key},
     )
