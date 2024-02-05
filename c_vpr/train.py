@@ -444,7 +444,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     rl_loss_weight_mixing: float = 1.0,
     rl_baseline_batch_size: Optional[int] = None,
     decode_from_sampled_cot_tokens: bool = False,
-    classification_mode: str = "cls_token",
+    classification_mode: str = "mean_embedding",
     learning_rate: float = 3e-4,
     num_iterations: int = 100_000,
     batch_size: int = 512,
@@ -614,6 +614,7 @@ if __name__ == "__main__":
         train_num_hops=[1, 2, 3, 4, 5],
         eval_num_hops=[1, 2, 3, 4, 5],
         seq_length=40,
+        encoder_cross_transformer_num_repeat=2,
         cot_module=False,
         cot_seq_length=3,
         cot_vocab_size=40,
@@ -621,7 +622,7 @@ if __name__ == "__main__":
         log_every=50,
         num_iterations=500_000,
         classification_mode="cls_token",
-        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED_mode",
+        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED_mode T1-2",
     )
     import sys
 
