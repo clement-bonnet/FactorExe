@@ -36,6 +36,7 @@ class EncoderConfig:
     cot_seq_length: Optional[int]
     cot_vocab_size: Optional[int]
     input_cross_transformer_config: TransformerConfig
+    classification_mode: str
     max_num_hops: Optional[int] = None
     use_bias: bool = False
     dtype: Any = jnp.float32
@@ -255,7 +256,7 @@ class Encoder(nn.Module):
         ]
 
     @nn.compact
-    def __call__(
+    def __call__(  # noqa: CCR001
         self,
         *,
         inputs: chex.Array,
@@ -350,8 +351,14 @@ class Encoder(nn.Module):
                     self_pad_mask=inputs_pad_mask,
                     cross_pad_mask=cot_pad_mask,
                 )
-        x = nn.LayerNorm(dtype=self.config.dtype, use_bias=self.config.use_bias)(x)
-        x = x.mean(axis=1)
+
+        if self.config.classification_mode == "mean_embedding":
+            x = nn.LayerNorm(dtype=self.config.dtype, use_bias=self.config.use_bias)(x)
+            x = x.mean(axis=1)
+        elif self.config.classification_mode == "cls_token":
+            x = x[:, 0, :]
+        else:
+            raise ValueError(f"Invalid classification mode: {self.config.classification_mode}")
         logits = nn.Dense(
             input_cross_transformer_config.output_vocab_size,
             self.config.use_bias,
@@ -546,6 +553,7 @@ if __name__ == "__main__":
             dropout_rate=0.1,
             attention_dropout_rate=0.1,
         ),
+        classification_mode="mean_embedding",
         max_num_hops=max_num_hops,
     )
     model = AugmentedTransformer(
