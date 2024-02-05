@@ -105,11 +105,11 @@ class Trainer:
         )
         return TrainState.create(apply_fn=apply_fn, tx=optimizer, params=params)
 
-    def _sample_n_hops(
-        self, key: chex.PRNGKey, num_hops_index: int, return_cot: bool = False
+    def _sample_n_hops_for_train(
+        self, key: chex.PRNGKey, num_hops: Optional[int] = None, return_cot: bool = False
     ) -> tuple[chex.Array, ...]:
         if len(self.train_num_hops) == 1:
-            del num_hops_index
+            del num_hops
             return self.env.sample_n_hops(
                 key, self.train_num_hops[0], return_cot=return_cot, return_target=True
             )
@@ -119,40 +119,33 @@ class Trainer:
                     "Sampling with return_cot=True is not supported when using multiple "
                     "values for train_num_hops. TODO: implement cot padding."
                 )
-            return jax.lax.switch(  # type: ignore
-                num_hops_index,
-                [
-                    functools.partial(
-                        self.env.sample_n_hops,
-                        num_hops=num_hops,
-                        return_cot=return_cot,
-                        return_target=True,
-                    )
-                    for num_hops in self.train_num_hops
-                ],
-                key,
+            assert num_hops is not None
+            return self.env.sample_n_hops(
+                key=key,
+                num_hops=num_hops,
+                return_cot=return_cot,
+                return_target=True,
             )
 
     def train_step_supervised(
         self, state: TrainState, key: chex.PRNGKey
     ) -> tuple[TrainState, dict]:
-        num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
+        num_hops_key, sample_key, dropout_key = jax.random.split(key, 3)
 
-        num_hops_indices = jax.random.choice(
+        num_hops = jax.random.choice(
             num_hops_key,
-            jnp.arange(len(self.train_num_hops)),
+            jnp.asarray(self.train_num_hops),
             (self.batch_size,),
             replace=True,
         )
         sample_keys = jax.random.split(sample_key, self.batch_size)
-        inputs, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
-        task_num_hops = jnp.take(jnp.asarray(self.train_num_hops), num_hops_indices)
+        inputs, labels = jax.vmap(self._sample_n_hops_for_train)(sample_keys, num_hops)
 
         def loss_fn(params: dict, dropout_key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
             logits, _ = state.apply_fn(
                 variables={"params": params},
                 inputs=inputs,
-                num_hops=task_num_hops,
+                num_hops=num_hops,
                 deterministic=False,
                 rngs={"dropout": dropout_key},
             )
@@ -170,16 +163,16 @@ class Trainer:
         num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
         drop_key1, drop_key2, drop_key3 = jax.random.split(dropout_key, 3)
 
-        num_hops_indices = jax.random.choice(
+        num_hops = jax.random.choice(
             num_hops_key,
-            jnp.arange(len(self.train_num_hops)),
+            jnp.asarray(self.train_num_hops),
             (self.batch_size,),
             replace=True,
         )
         sample_keys = jax.random.split(sample_key, self.batch_size)
-        inputs, cots, labels = jax.vmap(functools.partial(self._sample_n_hops, return_cot=True))(
-            sample_keys, num_hops_indices
-        )
+        inputs, cots, labels = jax.vmap(
+            functools.partial(self._sample_n_hops_for_train, return_cot=True)
+        )(sample_keys, num_hops)
 
         def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
             # CoT Module forward pass.
@@ -191,6 +184,7 @@ class Trainer:
                 cot_tokens=cot_tokens,
                 inputs=inputs,
                 deterministic=False,
+                num_hops=num_hops,
                 inputs_pad_mask=None,
                 rngs={"dropout": drop_key1},
                 method=self.model.cot_module_generate_cot_logits,
@@ -201,6 +195,7 @@ class Trainer:
                     variables={"params": params},
                     inputs=inputs,
                     deterministic=False,
+                    num_hops=num_hops,
                     pad_mask=None,
                     cot_sampling=True,
                     cot_key=cot_key,
@@ -216,6 +211,7 @@ class Trainer:
                 inputs=inputs,
                 cot_tokens=cot_tokens,
                 deterministic=False,
+                num_hops=num_hops,
                 inputs_pad_mask=None,
                 cot_pad_mask=None,
                 rngs={"dropout": drop_key3},
@@ -236,14 +232,14 @@ class Trainer:
     def train_step_rl(self, state: TrainState, key: chex.PRNGKey) -> tuple[TrainState, dict]:
         num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
 
-        num_hops_indices = jax.random.choice(
+        num_hops = jax.random.choice(
             num_hops_key,
-            jnp.arange(len(self.train_num_hops)),
+            jnp.asarray(self.train_num_hops),
             (self.batch_size,),
             replace=True,
         )
         sample_keys = jax.random.split(sample_key, self.batch_size)
-        inputs, labels = jax.vmap(self._sample_n_hops)(sample_keys, num_hops_indices)
+        inputs, labels = jax.vmap(self._sample_n_hops_for_train)(sample_keys, num_hops)
 
         def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
             # TODO: vmap the forward below to compute a baseline for each sample.
@@ -251,6 +247,7 @@ class Trainer:
                 variables={"params": params},
                 inputs=inputs,
                 deterministic=False,
+                num_hops=num_hops,
                 cot_key=cot_key,
                 cot_sampling=True,
                 rngs={"dropout": dropout_key},
@@ -267,6 +264,7 @@ class Trainer:
                         variables={"params": params},
                         inputs=inputs,
                         deterministic=False,
+                        num_hops=num_hops,
                         cot_key=cot_key,
                         cot_sampling=True,
                         rngs={"dropout": dropout_key},
