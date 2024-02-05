@@ -337,6 +337,19 @@ class Encoder(nn.Module):
                 inputs_pad_mask = jnp.concatenate(
                     [inputs_pad_mask, jnp.ones_like(inputs_pad_mask[:, 0:1])], axis=-1
                 )
+        # Concatenate the cls token to the input embeddings.
+        if self.config.classification_mode == "cls_token":
+            cls_token = nn.Embed(
+                num_embeddings=1,
+                features=input_cross_transformer_config.emb_dim,
+                name="cls_token",
+            )(jnp.zeros((inputs.shape[0], 1), int))
+            x = jnp.concatenate([cls_token, x], axis=-2)
+            if inputs_pad_mask is not None:
+                inputs_pad_mask = jnp.concatenate(
+                    [jnp.ones_like(inputs_pad_mask[:, 0:1]), inputs_pad_mask], axis=-1
+                )
+
         x = nn.Dropout(rate=input_cross_transformer_config.dropout_rate)(
             x, deterministic=deterministic
         )
@@ -352,13 +365,12 @@ class Encoder(nn.Module):
                     cross_pad_mask=cot_pad_mask,
                 )
 
-        if self.config.classification_mode == "mean_embedding":
-            x = nn.LayerNorm(dtype=self.config.dtype, use_bias=self.config.use_bias)(x)
-            x = x.mean(axis=1)
-        elif self.config.classification_mode == "cls_token":
+        if self.config.classification_mode == "cls_token":
             x = x[:, 0, :]
         else:
-            raise ValueError(f"Invalid classification mode: {self.config.classification_mode}")
+            assert self.config.classification_mode == "mean_embedding"
+            x = nn.LayerNorm(dtype=self.config.dtype, use_bias=self.config.use_bias)(x)
+            x = x.mean(axis=1)
         logits = nn.Dense(
             input_cross_transformer_config.output_vocab_size,
             self.config.use_bias,
