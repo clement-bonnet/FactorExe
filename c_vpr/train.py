@@ -617,7 +617,7 @@ if __name__ == "__main__":
         cot_module=True,
         cot_module_input_encoder_num_repeat = 0,
         encoder_cot_encoder_num_repeat = 0,
-        cot_seq_length=7,
+        cot_seq_length=11,
         cot_vocab_size=40,
         batch_size=256,
         log_every=50,
