@@ -287,7 +287,8 @@ class Encoder(nn.Module):
             assert self.config.cot_seq_length is not None
             assert self.config.cot_vocab_size is not None
             cot_tok_embed = nn.Embed(
-                num_embeddings=self.config.cot_vocab_size,
+                num_embeddings=self.config.cot_vocab_size
+                + 1,  # +1 for the start token embedding used for padding
                 features=cot_transformer_config.emb_dim,
                 name="cot_tok_embed",
             )(cot_tokens.astype("int32"))

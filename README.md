@@ -24,8 +24,8 @@
 - [x]: implement CLS token (instead of mean embedding output)
 - [x]: pass num_hops as input (in case of curriculum learning)
 - [x]: extend the COT chain to include the last hop (the label)
+- [ ]: pad cot chain to allow curriculum learning and cot/rl mode
 - [ ]: replace COT start token with 0 token OR add "start_token" as a possible action for sampled cot_tokens (to use as explicit padding)
-
 
 ## Questions
 

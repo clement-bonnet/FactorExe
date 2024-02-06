@@ -109,23 +109,37 @@ class Trainer:
         self, key: chex.PRNGKey, num_hops: Optional[int] = None, return_cot: bool = False
     ) -> tuple[chex.Array, ...]:
         if len(self.train_num_hops) == 1:
-            del num_hops
+            assert num_hops is None or num_hops == self.train_num_hops[0]
             return self.env.sample_n_hops(
                 key, self.train_num_hops[0], return_cot=return_cot, return_target=True
             )
         else:
-            if return_cot:
-                raise NotImplementedError(
-                    "Sampling with return_cot=True is not supported when using multiple "
-                    "values for train_num_hops. TODO: implement cot padding."
-                )
             assert num_hops is not None
-            return self.env.sample_n_hops(
-                key=key,
-                num_hops=num_hops,
-                return_cot=return_cot,
-                return_target=True,
-            )
+            if return_cot:
+                sequence, cot, target = jax.lax.switch(
+                    jnp.argmax(num_hops == jnp.asarray(self.train_num_hops)),
+                    [
+                        functools.partial(
+                            self.env.sample_n_hops,
+                            num_hops=n_hops,
+                            return_cot=return_cot,
+                            return_target=True,
+                            cot_pading_length=max(self.train_num_hops) - n_hops,
+                            cot_pading_value=self.cot_start_token,
+                        )
+                        for n_hops in self.train_num_hops
+                    ],
+                    key,
+                )
+                return sequence, cot, target
+            else:
+                sequence, target = self.env.sample_n_hops(
+                    key=key,
+                    num_hops=num_hops,
+                    return_cot=return_cot,
+                    return_target=True,
+                )
+                return sequence, target
 
     def train_step_supervised(
         self, state: TrainState, key: chex.PRNGKey
@@ -242,7 +256,6 @@ class Trainer:
         inputs, labels = jax.vmap(self._sample_n_hops_for_train)(sample_keys, num_hops)
 
         def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
-            # TODO: vmap the forward below to compute a baseline for each sample.
             logits, (cot_tokens, cot_logits) = state.apply_fn(
                 variables={"params": params},
                 inputs=inputs,
@@ -611,12 +624,12 @@ if __name__ == "__main__":
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.COT,
-        train_num_hops=10,
+        train_num_hops=[8, 10],
         eval_num_hops=10,
         seq_length=40,
         cot_module=True,
-        cot_module_input_encoder_num_repeat = 0,
-        encoder_cot_encoder_num_repeat = 0,
+        cot_module_input_encoder_num_repeat=0,
+        encoder_cot_encoder_num_repeat=0,
         cot_seq_length=11,
         cot_vocab_size=40,
         batch_size=256,

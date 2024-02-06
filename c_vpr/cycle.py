@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 
 import chex
 import jax
@@ -36,6 +36,8 @@ class Cycle(Env):
         num_hops: int,
         return_cot: bool = False,
         return_target: bool = False,
+        cot_pading_length: int = 0,
+        cot_pading_value: Optional[int] = None,
     ) -> Union[chex.Array, tuple[chex.Array, ...]]:
         """Uniformly samples a cycle with `num_hops` in it."""
         permutation = jax.random.permutation(key, jnp.arange(self.input_length))
@@ -45,6 +47,9 @@ class Cycle(Env):
         sequence = sequence.at[permutation].set(jnp.roll(permutation, -1))
         if return_cot:
             cot = jnp.roll(permutation, -zero_index - 1)[: num_hops + 1]
+            if cot_pading_length > 0:
+                assert cot_pading_value is not None
+                cot = jnp.pad(cot, (0, cot_pading_length), constant_values=cot_pading_value)
             if return_target:
                 return sequence, cot, target
             else:

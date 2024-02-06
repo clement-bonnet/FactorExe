@@ -1,5 +1,5 @@
 import abc
-from typing import Union
+from typing import Optional, Union
 
 import chex
 import jax
@@ -14,6 +14,8 @@ class Env(abc.ABC):
         num_hops: int,
         return_cot: bool = False,
         return_target: bool = False,
+        cot_pading_length: int = 0,
+        cot_pading_value: Optional[int] = None,
     ) -> Union[chex.Array, tuple[chex.Array, ...]]:
         pass
 
@@ -41,8 +43,13 @@ class C_VPR(Env):  # noqa: N801
         num_hops: int,
         return_cot: bool = False,
         return_target: bool = False,
+        cot_pading_length: int = 0,
+        cot_pading_value: Optional[int] = None,
     ) -> Union[chex.Array, tuple[chex.Array, ...]]:
         """Uniformly samples a sequence with `num_hops` in it."""
+        assert (
+            cot_pading_length == 0 and cot_pading_value is None
+        ), "Padding is not supported for this environment."
         pointers_key, example_key, last_index_key = jax.random.split(key, 3)
         pointers = jax.random.choice(
             pointers_key, jnp.arange(1, self.input_length), (num_hops,), replace=False
