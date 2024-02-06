@@ -624,7 +624,7 @@ if __name__ == "__main__":
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.COT,
-        train_num_hops=[8, 10],
+        train_num_hops=10,
         eval_num_hops=10,
         seq_length=40,
         cot_module=True,
