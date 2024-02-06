@@ -169,8 +169,8 @@ class CoTModule(nn.Module):
         )
         cot_tokens = cot_tokens.at[:, 0].set(config.cot_vocab_size)  # set the start token
         assert cot_key is not None or not cot_sampling
-        logits_list = []
         # TODO: speed up for loop with jax.lax.scan
+        logits_list = []
         for i in range(config.cot_seq_length):
             all_logits = self.generate_logits(
                 cot_tokens=cot_tokens,
@@ -187,6 +187,29 @@ class CoTModule(nn.Module):
                 new_token = jnp.argmax(logits, axis=-1)
             cot_tokens = cot_tokens.at[:, i + 1].set(new_token)
         logits = jnp.stack(logits_list, axis=1)
+
+        # def sample_one_cot_token(
+        #     carry: tuple[chex.Array, chex.Array], _i: int
+        # ) -> tuple[tuple[chex.Array, chex.Array], chex.Array]:
+        #     cot_tokens, cot_key = carry
+        #     all_logits = self.generate_logits(
+        #         cot_tokens=cot_tokens,
+        #         inputs_embeddings=inputs_embeddings,
+        #         deterministic=deterministic,
+        #         inputs_pad_mask=pad_mask,
+        #     )
+        #     logits = all_logits[:, _i, :]
+        #     if cot_sampling:
+        #         sample_key, cot_key = jax.random.split(cot_key)
+        #         new_token = jax.random.categorical(sample_key, logits)
+        #     else:
+        #         new_token = jnp.argmax(logits, axis=-1)
+        #     cot_tokens = cot_tokens.at[:, _i + 1].set(new_token)
+        #     return (cot_tokens, cot_key), logits
+
+        # (cot_tokens, _), logits = flax.linen.scan(
+        #     sample_one_cot_token, variable_broadcast="params", split_rngs={"params": False}
+        # )((cot_tokens, cot_key), jnp.arange(config.cot_seq_length))
         cot_tokens = cot_tokens[:, 1:]  # remove the start token
         return cot_tokens, logits
 
