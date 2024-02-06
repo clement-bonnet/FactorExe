@@ -109,7 +109,6 @@ class Trainer:
         self, key: chex.PRNGKey, num_hops: Optional[int] = None, return_cot: bool = False
     ) -> tuple[chex.Array, ...]:
         if len(self.train_num_hops) == 1:
-            assert num_hops is None or num_hops == self.train_num_hops[0]
             return self.env.sample_n_hops(
                 key, self.train_num_hops[0], return_cot=return_cot, return_target=True
             )
