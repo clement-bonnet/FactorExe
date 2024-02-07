@@ -202,6 +202,9 @@ class Trainer:
                 rngs={"dropout": drop_key1},
                 method=self.model.cot_module_generate_cot_logits,
             )
+            cot_entropy = -jnp.mean(
+                jnp.sum(jax.nn.log_softmax(cot_logits) * jax.nn.softmax(cot_logits), -1)
+            )
             cot_loss = cross_entropy_loss(logits=cot_logits, labels=cots)
             if self.decode_from_sampled_cot_tokens:
                 cot_tokens, _ = state.apply_fn(
@@ -233,13 +236,13 @@ class Trainer:
             supervised_loss = cross_entropy_loss(logits, labels)
 
             loss = supervised_loss + self.cot_loss_weight_mixing * cot_loss
-            return loss, (logits, cot_loss)
+            return loss, (logits, cot_loss, cot_entropy)
 
-        grads, (logits, cot_loss) = jax.grad(loss_fn, has_aux=True)(state.params)
+        grads, (logits, cot_loss, cot_entropy) = jax.grad(loss_fn, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
         grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
-        metrics.update(grad_norm=grad_norm, cot_loss=cot_loss)
+        metrics.update(grad_norm=grad_norm, cot_loss=cot_loss, cot_entropy=cot_entropy)
         return state, metrics
 
     def train_step_rl(self, state: TrainState, key: chex.PRNGKey) -> tuple[TrainState, dict]:
@@ -263,6 +266,9 @@ class Trainer:
                 cot_key=cot_key,
                 cot_sampling=True,
                 rngs={"dropout": dropout_key},
+            )
+            cot_entropy = -jnp.mean(
+                jnp.sum(jax.nn.log_softmax(cot_logits) * jax.nn.softmax(cot_logits), -1)
             )
             supervised_loss = cross_entropy_loss(logits, labels)
             rewards = jax.lax.stop_gradient(-cross_entropy_loss(logits, labels, mean=False))
@@ -303,13 +309,13 @@ class Trainer:
             rl_loss = jnp.mean(-rewards[..., None] * cot_log_prob)
 
             loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
-            return loss, (logits, rl_loss)
+            return loss, (logits, rl_loss, cot_entropy)
 
-        grads, (logits, rl_loss) = jax.grad(loss_fn, has_aux=True)(state.params)
+        grads, (logits, rl_loss, cot_entropy) = jax.grad(loss_fn, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
         grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
-        metrics.update(grad_norm=grad_norm, rl_loss=rl_loss)
+        metrics.update(grad_norm=grad_norm, rl_loss=rl_loss, cot_entropy=cot_entropy)
         return state, metrics
 
     def train_epoch(
@@ -625,34 +631,37 @@ def run_augmented_transformer_exp(  # noqa: CCR001
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=2,
-        eval_num_hops=2,
-        seq_length=40,
-        cot_module=True,
-        encoder_cross_transformer_num_layers=1,
-        cot_seq_length=3,
-        cot_vocab_size=40,
-        log_every=500,
-        num_iterations=500_000,
-        run_name="Cycle 2-40 RL T1 long",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.SUPERVISED,
-        train_num_hops=2,
-        eval_num_hops=2,
-        seq_length=40,
-        cot_module=False,
-        encoder_cross_transformer_num_layers=1,
-        cot_seq_length=3,
-        cot_vocab_size=40,
-        log_every=500,
-        num_iterations=500_000,
-        run_name="Cycle 2-40 SUPERVISED T1 long",
-    )
+    for seed in range(5):
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=1,
+            eval_num_hops=1,
+            seq_length=40,
+            cot_module=True,
+            encoder_cross_transformer_num_layers=1,
+            cot_seq_length=2,
+            cot_vocab_size=40,
+            log_every=500,
+            num_iterations=500_000,
+            seed=seed,
+            run_name=f"Cycle 2-40 RL T1 long seed_{seed}",
+        )
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.SUPERVISED,
+            train_num_hops=1,
+            eval_num_hops=1,
+            seq_length=40,
+            cot_module=False,
+            encoder_cross_transformer_num_layers=1,
+            cot_seq_length=2,
+            cot_vocab_size=40,
+            log_every=500,
+            num_iterations=500_000,
+            seed=seed,
+            run_name=f"Cycle 2-40 SUPERVISED T1 long seed_{seed}",
+        )
     import sys
 
     sys.exit()
