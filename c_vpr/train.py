@@ -645,7 +645,7 @@ if __name__ == "__main__":
             log_every=500,
             num_iterations=500_000,
             seed=seed,
-            run_name=f"Cycle 2-40 RL T1 long seed_{seed}",
+            run_name=f"Cycle 1-40 RL T1 long seed_{seed}",
         )
         run_augmented_transformer_exp(
             env_name="Cycle",
@@ -660,7 +660,7 @@ if __name__ == "__main__":
             log_every=500,
             num_iterations=500_000,
             seed=seed,
-            run_name=f"Cycle 2-40 SUPERVISED T1 long seed_{seed}",
+            run_name=f"Cycle 1-40 SUPERVISED T1 long seed_{seed}",
         )
     import sys
 
