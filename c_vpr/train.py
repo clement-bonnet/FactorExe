@@ -628,30 +628,30 @@ if __name__ == "__main__":
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
-        train_num_hops=1,
-        eval_num_hops=1,
+        train_num_hops=2,
+        eval_num_hops=2,
         seq_length=40,
         cot_module=True,
         encoder_cross_transformer_num_layers=1,
-        cot_seq_length=2,
+        cot_seq_length=3,
         cot_vocab_size=40,
         log_every=500,
         num_iterations=500_000,
-        run_name="Cycle 1-40 RL T1 long",
+        run_name="Cycle 2-40 RL T1 long",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.SUPERVISED,
-        train_num_hops=1,
-        eval_num_hops=1,
+        train_num_hops=2,
+        eval_num_hops=2,
         seq_length=40,
         cot_module=False,
         encoder_cross_transformer_num_layers=1,
-        cot_seq_length=2,
+        cot_seq_length=3,
         cot_vocab_size=40,
         log_every=500,
         num_iterations=500_000,
-        run_name="Cycle 1-40 SUPERVISED T1 long",
+        run_name="Cycle 2-40 SUPERVISED T1 long",
     )
     import sys
 
