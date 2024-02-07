@@ -627,6 +627,21 @@ if __name__ == "__main__":
     # Selected Cycle difficulties: []
     run_augmented_transformer_exp(
         env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=[1, 2, 3, 4, 5],
+        eval_num_hops=[1, 2, 3, 4, 5],
+        seq_length=40,
+        cot_module=True,
+        encoder_cross_transformer_num_layers=3,
+        cot_seq_length=6,
+        cot_vocab_size=40,
+        log_every=100,
+        num_iterations=20_000,
+        run_name="Cycle [1,2,3,4,5]-40 RL T3",
+    )
+
+    run_augmented_transformer_exp(
+        env_name="Cycle",
         mode=MODE.SUPERVISED,
         train_num_hops=[1, 2, 3, 4, 5],
         eval_num_hops=[1, 2, 3, 4, 5],
@@ -637,7 +652,8 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         log_every=100,
         num_iterations=20_000,
-        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED T1",
+        classification_mode="mean_embedding",
+        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED T1 mean_embedding",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -651,7 +667,8 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         log_every=100,
         num_iterations=20_000,
-        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED T2",
+        classification_mode="mean_embedding",
+        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED T2 mean_embedding",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -665,7 +682,8 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         log_every=100,
         num_iterations=20_000,
-        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED T3",
+        classification_mode="mean_embedding",
+        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED T3 mean_embedding",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -679,7 +697,8 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         log_every=100,
         num_iterations=20_000,
-        run_name="Cycle [1,2,3,4,5]-40 COT T1",
+        classification_mode="mean_embedding",
+        run_name="Cycle [1,2,3,4,5]-40 COT T1 mean_embedding",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -693,7 +712,8 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         log_every=100,
         num_iterations=20_000,
-        run_name="Cycle [1,2,3,4,5]-40 COT T2",
+        classification_mode="mean_embedding",
+        run_name="Cycle [1,2,3,4,5]-40 COT T2 mean_embedding",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -707,7 +727,8 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         log_every=100,
         num_iterations=20_000,
-        run_name="Cycle [1,2,3,4,5]-40 RL T1",
+        classification_mode="mean_embedding",
+        run_name="Cycle [1,2,3,4,5]-40 RL T1 mean_embedding",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -721,5 +742,64 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         log_every=100,
         num_iterations=20_000,
-        run_name="Cycle [1,2,3,4,5]-40 RL T2",
+        classification_mode="mean_embedding",
+        run_name="Cycle [1,2,3,4,5]-40 RL T2 mean_embedding",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=[1, 2, 3, 4, 5],
+        eval_num_hops=[1, 2, 3, 4, 5],
+        seq_length=40,
+        cot_module=True,
+        encoder_cross_transformer_num_layers=3,
+        cot_seq_length=6,
+        cot_vocab_size=40,
+        log_every=100,
+        num_iterations=20_000,
+        classification_mode="mean_embedding",
+        run_name="Cycle [1,2,3,4,5]-40 RL T3 mean_embedding",
+    )
+
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=[1, 2, 3, 4, 5],
+        eval_num_hops=[1, 2, 3, 4, 5],
+        seq_length=40,
+        cot_module=True,
+        encoder_cross_transformer_num_layers=1,
+        cot_seq_length=6,
+        cot_vocab_size=40,
+        log_every=500,
+        num_iterations=500_000,
+        run_name="Cycle [1,2,3,4,5]-40 RL T1 long",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.SUPERVISED,
+        train_num_hops=[1, 2, 3, 4, 5],
+        eval_num_hops=[1, 2, 3, 4, 5],
+        seq_length=40,
+        cot_module=False,
+        encoder_cross_transformer_num_layers=1,
+        cot_seq_length=6,
+        cot_vocab_size=40,
+        log_every=500,
+        num_iterations=500_000,
+        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED T1 long",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.SUPERVISED,
+        train_num_hops=[1, 2, 3, 4, 5],
+        eval_num_hops=[1, 2, 3, 4, 5],
+        seq_length=40,
+        cot_module=True,
+        encoder_cross_transformer_num_layers=1,
+        cot_seq_length=6,
+        cot_vocab_size=40,
+        log_every=500,
+        num_iterations=500_000,
+        run_name="Cycle [1,2,3,4,5]-40 SUPERVISED T1 cot_module long",
     )
