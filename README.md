@@ -27,6 +27,7 @@
 - [x]: extend the COT chain to include the last hop (the label)
 - [x]: pad cot chain to allow curriculum learning and cot/rl mode
 - [x]: add "start_token" as a possible action for sampled cot_tokens (to use as explicit padding)
+- [ ]: implement policy improvement through search or POPPY-like algo
 
 ## Questions
 
