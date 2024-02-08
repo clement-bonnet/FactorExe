@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import optax
 from flax.serialization import from_bytes, msgpack_serialize, to_state_dict
 from flax.training.train_state import TrainState
+from PIL import Image, ImageDraw
 from tqdm.auto import trange
 
 import wandb
@@ -364,6 +365,30 @@ class Trainer:
 
         return metrics
 
+    def generate_cot_samples(
+        self, state: TrainState, key: chex.PRNGKey, num_samples: int
+    ) -> dict[str, chex.Array]:
+        metrics: dict[str, chex.Array] = {}
+        if self.eval_num_hops is None:
+            return metrics
+        sample_keys = jax.random.split(key, len(self.eval_num_hops))
+        for num_hops, sample_key in zip(self.eval_num_hops, sample_keys):
+            keys = jax.random.split(sample_key, num_samples)
+            inputs, labels = jax.vmap(
+                functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
+            )(keys)
+            _, (cot_tokens, _) = state.apply_fn(
+                variables={"params": state.params},
+                inputs=inputs,
+                deterministic=True,
+                num_hops=jnp.full((num_samples,), num_hops),
+                cot_key=sample_key,
+                cot_sampling=True,
+            )
+            metrics.update({f"test/cot_tokens/num_hops:{num_hops}": (inputs, labels, cot_tokens)})
+
+        return metrics
+
     def train(
         self,
         state: TrainState,
@@ -373,11 +398,27 @@ class Trainer:
     ) -> TrainState:
         jit_train_epoch = jax.jit(functools.partial(self.train_epoch, num_steps=log_every))
         jit_eval = jax.jit(self.eval)
+        jit_generate_cot_samples = jax.jit(
+            functools.partial(self.generate_cot_samples, num_samples=3)
+        )
         num_epochs = num_iterations // log_every
         for epoch in trange(1, num_epochs + 1):
             key, epoch_key, eval_key = jax.random.split(key, 3)
             state, metrics = jit_train_epoch(state, epoch_key)
             metrics.update(jit_eval(state, eval_key))
+            if self.mode == MODE.RL:
+                test_metrics = jit_generate_cot_samples(state, eval_key)
+                for k, (inputs, labels, cot_tokens) in test_metrics.items():
+                    img = Image.new("RGB", (400, 256), color=(0, 0, 0))
+                    draw = ImageDraw.Draw(img)
+                    draw.text(
+                        (10, 10),
+                        f"    inputs\n{inputs}\n\n"
+                        f"    labels\n{labels}\n\n"
+                        f"    cot_tokens\n{cot_tokens}",
+                        fill=(255, 255, 255),
+                    )
+                    metrics.update({k: wandb.Image(img)})
             wandb.log(metrics, step=epoch * log_every)
         return state
 
@@ -631,7 +672,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
-    for seed in range(5):
+    for seed in range(3):
         run_augmented_transformer_exp(
             env_name="Cycle",
             mode=MODE.RL,
@@ -645,23 +686,23 @@ if __name__ == "__main__":
             log_every=500,
             num_iterations=500_000,
             seed=seed,
-            run_name=f"Cycle 1-40 RL T1 long seed_{seed}",
+            run_name=f"Cycle 1-40 RL T1 long seed_{seed} with_cot_logs",
         )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.SUPERVISED,
-            train_num_hops=1,
-            eval_num_hops=1,
-            seq_length=40,
-            cot_module=False,
-            encoder_cross_transformer_num_layers=1,
-            cot_seq_length=2,
-            cot_vocab_size=40,
-            log_every=500,
-            num_iterations=500_000,
-            seed=seed,
-            run_name=f"Cycle 1-40 SUPERVISED T1 long seed_{seed}",
-        )
+        # run_augmented_transformer_exp(
+        #     env_name="Cycle",
+        #     mode=MODE.SUPERVISED,
+        #     train_num_hops=1,
+        #     eval_num_hops=1,
+        #     seq_length=40,
+        #     cot_module=False,
+        #     encoder_cross_transformer_num_layers=1,
+        #     cot_seq_length=2,
+        #     cot_vocab_size=40,
+        #     log_every=500,
+        #     num_iterations=500_000,
+        #     seed=seed,
+        #     run_name=f"Cycle 1-40 SUPERVISED T1 long seed_{seed}",
+        # )
     import sys
 
     sys.exit()

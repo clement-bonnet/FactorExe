@@ -20,7 +20,7 @@
 - [x]: implement chain of thought training
 - [x]: implement RL training
 - [x]: implement variance reduction for RL training (e.g. using a baseline)
-- [ ]: log cot policy entropy
+- [x]: log cot policy entropy
 - [ ]: speed up compilation time by using flax scan instead of python for loop in COT Module call
 - [x]: implement CLS token (instead of mean embedding output)
 - [x]: pass num_hops as input (in case of curriculum learning)
@@ -28,6 +28,7 @@
 - [x]: pad cot chain to allow curriculum learning and cot/rl mode
 - [x]: add "start_token" as a possible action for sampled cot_tokens (to use as explicit padding)
 - [ ]: implement policy improvement through search or POPPY-like algo
+- [x]: log some examples of inputs and COT during training
 
 ## Questions
 
@@ -82,3 +83,4 @@ On a tangent, two other applications could emerge. First, one could even imagine
 - [Sparse Universal Transformer, [Tan et al., 2023]](https://arxiv.org/abs/2310.07096)
 - [Improving the Neural GPU Architecture for Algorithm Learning, [Freivalds & Liepins, 2017]](https://arxiv.org/abs/1702.08727)
 - [Neural GPUs Learn Algorithms, [Kaiser & Sutskever, 2015]](https://arxiv.org/abs/1511.08228)
+- [Self-Discover: Large Language Models Self-Compose Reasoning Structures, [Zhou et al., 2024]](https://arxiv.org/abs/2402.03620)
