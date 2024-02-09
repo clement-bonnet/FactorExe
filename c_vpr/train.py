@@ -47,6 +47,10 @@ class Trainer:
         cot_loss_weight_mixing: float = 1.0,
         rl_loss_weight_mixing: float = 1.0,
         rl_baseline_batch_size: Optional[int] = None,
+        use_poppy: bool = False,
+        poppy_size: Optional[int] = None,
+        poppy_train_encoder_on_best_cot: bool = False,
+        poppy_train_cot_module_using_poppy: bool = False,
         decode_from_sampled_cot_tokens: bool = False,
     ) -> None:
         self.model = model
@@ -74,6 +78,10 @@ class Trainer:
         self.cot_loss_weight_mixing = cot_loss_weight_mixing
         self.rl_loss_weight_mixing = rl_loss_weight_mixing
         self.rl_baseline_batch_size = rl_baseline_batch_size
+        self.use_poppy = use_poppy
+        self.poppy_size = poppy_size
+        self.poppy_train_encoder_on_best_cot = poppy_train_encoder_on_best_cot
+        self.poppy_train_cot_module_using_poppy = poppy_train_cot_module_using_poppy
         self.decode_from_sampled_cot_tokens = decode_from_sampled_cot_tokens
 
     def init_train_state(
@@ -258,6 +266,74 @@ class Trainer:
         sample_keys = jax.random.split(sample_key, self.batch_size)
         inputs, labels = jax.vmap(self._sample_n_hops_for_train)(sample_keys, num_hops)
 
+        def poppy_loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
+            assert self.poppy_size is not None
+
+            def apply_to_vmap(
+                inputs: chex.Array, cot_key: chex.PRNGKey
+            ) -> tuple[chex.Array, tuple[chex.Array, chex.Array]]:
+                return state.apply_fn(  # type: ignore
+                    variables={"params": params},
+                    inputs=inputs,
+                    deterministic=False,
+                    num_hops=num_hops,
+                    cot_key=cot_key,
+                    cot_sampling=True,
+                    rngs={"dropout": dropout_key},
+                )
+
+            cot_keys = jax.random.split(cot_key, self.poppy_size)
+            logits, (cot_tokens, cot_logits) = jax.vmap(apply_to_vmap)(
+                inputs[None].repeat(self.poppy_size, axis=0), cot_keys
+            )
+            cot_entropy = -jnp.mean(
+                jnp.sum(jax.nn.log_softmax(cot_logits) * jax.nn.softmax(cot_logits), -1)
+            )
+            rewards = jax.lax.stop_gradient(
+                -cross_entropy_loss(
+                    logits,
+                    labels[None].repeat(self.poppy_size, axis=0),
+                    mean=False,
+                )
+            )
+
+            if self.poppy_train_encoder_on_best_cot:
+                # TODO: Check if this is correct
+                best_logits = jnp.take_along_axis(
+                    logits, jnp.argmax(rewards, axis=0)[None, :, None], axis=0
+                ).squeeze(0)
+                supervised_loss = cross_entropy_loss(best_logits, labels)
+            else:
+                supervised_loss = cross_entropy_loss(
+                    logits, labels[None].repeat(self.poppy_size, axis=0)
+                )
+
+            if self.poppy_train_cot_module_using_poppy:
+                best_rewards, second_best_rewards = jnp.sort(rewards, axis=0)[-2:]
+                best_logits = jnp.take_along_axis(
+                    logits, jnp.argmax(rewards, axis=0)[None, :, None], axis=0
+                ).squeeze(0)
+                best_cot_tokens = jnp.take_along_axis(
+                    cot_tokens, jnp.argmax(rewards, axis=0)[None, :, None], axis=0
+                ).squeeze(0)
+                best_cot_all_log_prob = jax.nn.log_softmax(best_logits, axis=-1)
+                # TODO: check if this is correct
+                best_cot_log_prob = jnp.take_along_axis(
+                    best_cot_all_log_prob, best_cot_tokens, axis=-1
+                )
+                rl_loss = jnp.mean(
+                    -(best_rewards - second_best_rewards)[:, None] * best_cot_log_prob
+                )
+            else:
+                cot_all_log_prob = jax.nn.log_softmax(cot_logits, axis=-1)
+                cot_log_prob = jnp.take_along_axis(
+                    cot_all_log_prob, cot_tokens[..., None], axis=-1
+                ).squeeze(-1)
+                rl_loss = jnp.mean(-rewards[..., None] * cot_log_prob)
+
+            loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
+            return loss, (logits, rl_loss, cot_entropy)
+
         def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
             logits, (cot_tokens, cot_logits) = state.apply_fn(
                 variables={"params": params},
@@ -312,7 +388,12 @@ class Trainer:
             loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
             return loss, (logits, rl_loss, cot_entropy)
 
-        grads, (logits, rl_loss, cot_entropy) = jax.grad(loss_fn, has_aux=True)(state.params)
+        if self.use_poppy:
+            grads, (logits, rl_loss, cot_entropy) = jax.grad(poppy_loss_fn, has_aux=True)(
+                state.params
+            )
+        else:
+            grads, (logits, rl_loss, cot_entropy) = jax.grad(loss_fn, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
         grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
@@ -409,7 +490,7 @@ class Trainer:
             if self.mode == MODE.RL:
                 test_metrics = jit_generate_cot_samples(state, eval_key)
                 for k, (inputs, labels, cot_tokens) in test_metrics.items():
-                    img = Image.new("RGB", (400, 350), color=(0, 0, 0))
+                    img = Image.new("RGB", (500, 350), color=(0, 0, 0))
                     draw = ImageDraw.Draw(img)
                     draw.text(
                         (10, 10),
@@ -506,6 +587,10 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     cot_loss_weight_mixing: float = 1.0,
     rl_loss_weight_mixing: float = 1.0,
     rl_baseline_batch_size: Optional[int] = None,
+    use_poppy: bool = False,
+    poppy_size: Optional[int] = None,
+    poppy_train_encoder_on_best_cot: bool = False,
+    poppy_train_cot_module_using_poppy: bool = False,
     decode_from_sampled_cot_tokens: bool = True,
     classification_mode: str = "cls_token",
     learning_rate: float = 3e-4,
@@ -660,6 +745,10 @@ def run_augmented_transformer_exp(  # noqa: CCR001
         cot_loss_weight_mixing=cot_loss_weight_mixing,
         rl_loss_weight_mixing=rl_loss_weight_mixing,
         rl_baseline_batch_size=rl_baseline_batch_size,
+        use_poppy=use_poppy,
+        poppy_size=poppy_size,
+        poppy_train_encoder_on_best_cot=poppy_train_encoder_on_best_cot,
+        poppy_train_cot_module_using_poppy=poppy_train_cot_module_using_poppy,
         decode_from_sampled_cot_tokens=decode_from_sampled_cot_tokens,
     )
     key = jax.random.PRNGKey(seed)
