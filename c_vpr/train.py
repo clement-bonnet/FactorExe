@@ -399,7 +399,7 @@ class Trainer:
         jit_train_epoch = jax.jit(functools.partial(self.train_epoch, num_steps=log_every))
         jit_eval = jax.jit(self.eval)
         jit_generate_cot_samples = jax.jit(
-            functools.partial(self.generate_cot_samples, num_samples=3)
+            functools.partial(self.generate_cot_samples, num_samples=5)
         )
         num_epochs = num_iterations // log_every
         for epoch in trange(1, num_epochs + 1):
@@ -409,7 +409,7 @@ class Trainer:
             if self.mode == MODE.RL:
                 test_metrics = jit_generate_cot_samples(state, eval_key)
                 for k, (inputs, labels, cot_tokens) in test_metrics.items():
-                    img = Image.new("RGB", (400, 256), color=(0, 0, 0))
+                    img = Image.new("RGB", (400, 350), color=(0, 0, 0))
                     draw = ImageDraw.Draw(img)
                     draw.text(
                         (10, 10),
@@ -672,22 +672,51 @@ def run_augmented_transformer_exp(  # noqa: CCR001
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
-    for seed in range(3):
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.RL,
-            train_num_hops=1,
-            eval_num_hops=1,
-            seq_length=40,
-            cot_module=True,
-            encoder_cross_transformer_num_layers=1,
-            cot_seq_length=2,
-            cot_vocab_size=40,
-            log_every=500,
-            num_iterations=500_000,
-            seed=seed,
-            run_name=f"Cycle 1-40 RL T1 long seed_{seed} with_cot_logs",
-        )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=2,
+        eval_num_hops=2,
+        seq_length=40,
+        cot_module=True,
+        encoder_cross_transformer_num_layers=1,
+        cot_seq_length=3,
+        cot_vocab_size=40,
+        log_every=500,
+        num_iterations=500_000,
+        run_name="Cycle 2-40 RL T1 long with_cot_logs",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=[1,2],
+        eval_num_hops=[1,2],
+        seq_length=40,
+        cot_module=True,
+        encoder_cross_transformer_num_layers=1,
+        cot_seq_length=3,
+        cot_vocab_size=40,
+        log_every=500,
+        num_iterations=500_000,
+        run_name="Cycle [1,2]-40 RL T1 long with_cot_logs",
+    )
+
+    # for seed in range(3):
+    #     run_augmented_transformer_exp(
+    #         env_name="Cycle",
+    #         mode=MODE.RL,
+    #         train_num_hops=1,
+    #         eval_num_hops=1,
+    #         seq_length=40,
+    #         cot_module=True,
+    #         encoder_cross_transformer_num_layers=1,
+    #         cot_seq_length=2,
+    #         cot_vocab_size=40,
+    #         log_every=500,
+    #         num_iterations=500_000,
+    #         seed=seed,
+    #         run_name=f"Cycle 1-40 RL T1 long seed_{seed} with_cot_logs",
+    #     )
         # run_augmented_transformer_exp(
         #     env_name="Cycle",
         #     mode=MODE.SUPERVISED,
