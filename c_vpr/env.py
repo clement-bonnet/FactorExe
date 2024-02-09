@@ -21,8 +21,8 @@ class Env(abc.ABC):
 
 
 class C_VPR(Env):  # noqa: N801
-    """Conditional Pointer Value Retrieval from adaptivity and modularity for efficient generalization
-    over task complexity [Abnar et al., 2023].
+    """Conditional Pointer Value Retrieval from adaptivity and modularity for efficient
+    generalization over task complexity [Abnar et al., 2023].
     """
 
     def __init__(self, input_length: int = 100) -> None:  # noqa: N803
