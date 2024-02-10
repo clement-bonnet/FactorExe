@@ -47,6 +47,7 @@ class Trainer:
         cot_start_token: Optional[int] = None,
         cot_loss_weight_mixing: float = 1.0,
         rl_loss_weight_mixing: float = 1.0,
+        cot_entropy_weight: float = 0.0,
         rl_baseline_batch_size: Optional[int] = None,
         use_poppy: bool = False,
         poppy_size: Optional[int] = None,
@@ -79,6 +80,7 @@ class Trainer:
         self.cot_loss_weight_mixing = cot_loss_weight_mixing
         self.rl_loss_weight_mixing = rl_loss_weight_mixing
         self.rl_baseline_batch_size = rl_baseline_batch_size
+        self.cot_entropy_weight = cot_entropy_weight
         self.use_poppy = use_poppy
         self.poppy_size = poppy_size
         self.poppy_train_encoder_on_best_cot = poppy_train_encoder_on_best_cot
@@ -434,7 +436,11 @@ class Trainer:
             ).squeeze(-1)
             rl_loss = jnp.mean(-rewards[..., None] * cot_log_prob)
 
-            loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
+            loss = (
+                supervised_loss
+                + self.rl_loss_weight_mixing * rl_loss
+                - self.cot_entropy_weight * cot_entropy
+            )
             return loss, (logits, rl_loss, cot_entropy)
 
         grads, (logits, rl_loss, cot_entropy) = jax.grad(loss_fn, has_aux=True)(state.params)
@@ -830,6 +836,7 @@ def run_cot_transformer_exp(  # noqa: CCR001
     all_dropouts_rate: float = 0.0,
     cot_loss_weight_mixing: float = 1.0,
     rl_loss_weight_mixing: float = 1.0,
+    cot_entropy_weight: float = 0.0,
     rl_baseline_batch_size: Optional[int] = None,
     use_poppy: bool = False,
     poppy_size: Optional[int] = None,
@@ -937,6 +944,7 @@ def run_cot_transformer_exp(  # noqa: CCR001
         cot_loss_weight_mixing=cot_loss_weight_mixing,
         rl_loss_weight_mixing=rl_loss_weight_mixing,
         rl_baseline_batch_size=rl_baseline_batch_size,
+        cot_entropy_weight=cot_entropy_weight,
         use_poppy=use_poppy,
         poppy_size=poppy_size,
         poppy_train_encoder_on_best_cot=poppy_train_encoder_on_best_cot,
@@ -957,15 +965,16 @@ if __name__ == "__main__":
     run_cot_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
-        train_num_hops=1,
-        eval_num_hops=1,
+        train_num_hops=2,
+        eval_num_hops=2,
         seq_length=40,
         cross_transformer_num_layers=1,
-        cot_seq_length=1,
+        cot_seq_length=2,
         cot_vocab_size=40,
         log_every=50,
         num_iterations=50_000,
-        run_name="Cycle 2-40 RL CoTTransformer",
+        cot_entropy_weight=1e-2,
+        run_name="Cycle 2-40 RL CoTTransformer entropy_coeff 1e-2",
     )
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
