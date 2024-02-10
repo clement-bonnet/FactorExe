@@ -315,7 +315,6 @@ class Trainer:
                     cot_tokens, jnp.argmax(rewards, axis=0)[None, :, None], axis=0
                 ).squeeze(0)
                 best_cot_all_log_prob = jax.nn.log_softmax(best_logits, axis=-1)
-                # TODO: check if this is correct
                 best_cot_log_prob = jnp.take_along_axis(
                     best_cot_all_log_prob, best_cot_tokens, axis=-1
                 )
@@ -759,6 +758,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
+
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.RL,
@@ -777,78 +777,78 @@ if __name__ == "__main__":
     #     poppy_train_cot_module_using_poppy=False,
     #     run_name="Cycle 2-40 RL T1 poppy_10 poppy_encoder",
     # )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=2,
-        eval_num_hops=2,
-        seq_length=40,
-        cot_module=True,
-        encoder_cross_transformer_num_layers=1,
-        cot_seq_length=3,
-        cot_vocab_size=40,
-        log_every=50,
-        num_iterations=50_000,
-        use_poppy=True,
-        poppy_size=2,
-        poppy_train_encoder_on_best_cot=False,
-        poppy_train_cot_module_using_poppy=True,
-        run_name="Cycle 2-40 RL T1 poppy_2 poppy_cot_module",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=1,
-        eval_num_hops=1,
-        seq_length=40,
-        cot_module=True,
-        encoder_cross_transformer_num_layers=1,
-        cot_seq_length=2,
-        cot_vocab_size=40,
-        log_every=50,
-        num_iterations=50_000,
-        use_poppy=True,
-        poppy_size=2,
-        poppy_train_encoder_on_best_cot=False,
-        poppy_train_cot_module_using_poppy=True,
-        run_name="Cycle 1-40 RL T1 poppy_2 poppy_cot_module",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=2,
-        eval_num_hops=2,
-        seq_length=40,
-        cot_module=True,
-        encoder_cross_transformer_num_layers=1,
-        cot_seq_length=3,
-        cot_vocab_size=40,
-        log_every=50,
-        num_iterations=50_000,
-        use_poppy=True,
-        poppy_size=2,
-        poppy_train_encoder_on_best_cot=True,
-        poppy_train_cot_module_using_poppy=True,
-        run_name="Cycle 2-40 RL T1 poppy_2 poppy_both",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=1,
-        eval_num_hops=1,
-        seq_length=40,
-        cot_module=True,
-        encoder_cross_transformer_num_layers=1,
-        cot_seq_length=2,
-        cot_vocab_size=40,
-        log_every=50,
-        num_iterations=50_000,
-        use_poppy=True,
-        poppy_size=2,
-        poppy_train_encoder_on_best_cot=True,
-        poppy_train_cot_module_using_poppy=True,
-        run_name="Cycle 1-40 RL T1 poppy_2 poppy_both",
-    )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=2,
+    #     eval_num_hops=2,
+    #     seq_length=40,
+    #     cot_module=True,
+    #     encoder_cross_transformer_num_layers=1,
+    #     cot_seq_length=3,
+    #     cot_vocab_size=40,
+    #     log_every=50,
+    #     num_iterations=50_000,
+    #     use_poppy=True,
+    #     poppy_size=2,
+    #     poppy_train_encoder_on_best_cot=False,
+    #     poppy_train_cot_module_using_poppy=True,
+    #     run_name="Cycle 2-40 RL T1 poppy_2 poppy_cot_module",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=40,
+    #     cot_module=True,
+    #     encoder_cross_transformer_num_layers=1,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=40,
+    #     log_every=50,
+    #     num_iterations=50_000,
+    #     use_poppy=True,
+    #     poppy_size=2,
+    #     poppy_train_encoder_on_best_cot=False,
+    #     poppy_train_cot_module_using_poppy=True,
+    #     run_name="Cycle 1-40 RL T1 poppy_2 poppy_cot_module",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=2,
+    #     eval_num_hops=2,
+    #     seq_length=40,
+    #     cot_module=True,
+    #     encoder_cross_transformer_num_layers=1,
+    #     cot_seq_length=3,
+    #     cot_vocab_size=40,
+    #     log_every=50,
+    #     num_iterations=50_000,
+    #     use_poppy=True,
+    #     poppy_size=2,
+    #     poppy_train_encoder_on_best_cot=True,
+    #     poppy_train_cot_module_using_poppy=True,
+    #     run_name="Cycle 2-40 RL T1 poppy_2 poppy_both",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=40,
+    #     cot_module=True,
+    #     encoder_cross_transformer_num_layers=1,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=40,
+    #     log_every=50,
+    #     num_iterations=50_000,
+    #     use_poppy=True,
+    #     poppy_size=2,
+    #     poppy_train_encoder_on_best_cot=True,
+    #     poppy_train_cot_module_using_poppy=True,
+    #     run_name="Cycle 1-40 RL T1 poppy_2 poppy_both",
+    # )
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.RL,
