@@ -787,14 +787,13 @@ if __name__ == "__main__":
         encoder_cross_transformer_num_layers=1,
         cot_seq_length=3,
         cot_vocab_size=40,
-        log_every=500,
-        num_iterations=500_000,
+        log_every=50,
+        num_iterations=50_000,
         use_poppy=True,
-        poppy_size=500,
-        batch_size=16,
+        poppy_size=2,
         poppy_train_encoder_on_best_cot=False,
         poppy_train_cot_module_using_poppy=True,
-        run_name="Cycle 2-40 RL T1 poppy_500 poppy_cot_module bs_16",
+        run_name="Cycle 2-40 RL T1 poppy_2 poppy_cot_module",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -809,10 +808,10 @@ if __name__ == "__main__":
         log_every=50,
         num_iterations=50_000,
         use_poppy=True,
-        poppy_size=10,
+        poppy_size=2,
         poppy_train_encoder_on_best_cot=False,
         poppy_train_cot_module_using_poppy=True,
-        run_name="Cycle 1-40 RL T1 poppy_10 poppy_cot_module",
+        run_name="Cycle 1-40 RL T1 poppy_2 poppy_cot_module",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -825,13 +824,12 @@ if __name__ == "__main__":
         cot_seq_length=3,
         cot_vocab_size=40,
         log_every=50,
-        num_iterations=500_000,
+        num_iterations=50_000,
         use_poppy=True,
-        poppy_size=500,
-        batch_size=16,
+        poppy_size=2,
         poppy_train_encoder_on_best_cot=True,
         poppy_train_cot_module_using_poppy=True,
-        run_name="Cycle 2-40 RL T1 poppy_500 poppy_both bs_16",
+        run_name="Cycle 2-40 RL T1 poppy_2 poppy_both",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -846,10 +844,10 @@ if __name__ == "__main__":
         log_every=50,
         num_iterations=50_000,
         use_poppy=True,
-        poppy_size=10,
+        poppy_size=2,
         poppy_train_encoder_on_best_cot=True,
         poppy_train_cot_module_using_poppy=True,
-        run_name="Cycle 1-40 RL T1 poppy_10 poppy_both",
+        run_name="Cycle 1-40 RL T1 poppy_2 poppy_both",
     )
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
