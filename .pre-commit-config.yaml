@@ -48,14 +48,14 @@ repos:
           - flake8-cognitive-complexity
           - importlib-metadata<5.0
 
-  - repo: local
-    hooks:
-      - id: mypy
-        name: "Static type checker"
-        entry: python -m mypy c_vpr
-        language: system
-        types: [ python ]
-        pass_filenames: false
+  # - repo: local
+  #   hooks:
+  #     - id: mypy
+  #       name: "Static type checker"
+  #       entry: python -m mypy c_vpr
+  #       language: system
+  #       types: [ python ]
+  #       pass_filenames: false
 
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v4.1.0

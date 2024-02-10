@@ -791,10 +791,10 @@ if __name__ == "__main__":
         num_iterations=500_000,
         use_poppy=True,
         poppy_size=500,
-        batch_size=32,
+        batch_size=16,
         poppy_train_encoder_on_best_cot=False,
         poppy_train_cot_module_using_poppy=True,
-        run_name="Cycle 2-40 RL T1 poppy_500 poppy_cot_module bs_32",
+        run_name="Cycle 2-40 RL T1 poppy_500 poppy_cot_module bs_16",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -828,10 +828,10 @@ if __name__ == "__main__":
         num_iterations=500_000,
         use_poppy=True,
         poppy_size=500,
-        batch_size=32,
+        batch_size=16,
         poppy_train_encoder_on_best_cot=True,
         poppy_train_cot_module_using_poppy=True,
-        run_name="Cycle 2-40 RL T1 poppy_500 poppy_both bs_32",
+        run_name="Cycle 2-40 RL T1 poppy_500 poppy_both bs_16",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
