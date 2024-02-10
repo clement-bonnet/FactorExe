@@ -20,9 +20,9 @@ else:
 
 
 @dataclass
-class CoTModuleConfig:
+class CoTTransformerConfig:
     input_transformer_config: TransformerConfig
-    cot_cross_transformer_config: TransformerConfig
+    cross_transformer_config: TransformerConfig
     cot_seq_length: int
     cot_vocab_size: int
     output_vocab_size: int
@@ -32,7 +32,7 @@ class CoTModuleConfig:
 
 
 class CoTTransformer(nn.Module):
-    config: CoTModuleConfig
+    config: CoTTransformerConfig
 
     def setup(self) -> None:
         # Inputs layers.
@@ -61,18 +61,18 @@ class CoTTransformer(nn.Module):
         # CoT layers.
         self.cot_tok_embed = nn.Embed(
             num_embeddings=self.config.cot_vocab_size + 1,  # +1 for the start token embedding
-            features=self.config.cot_cross_transformer_config.emb_dim,
+            features=self.config.cross_transformer_config.emb_dim,
             name="cot_tok_embed",
         )
         self.cot_pos_embed = nn.Embed(
             num_embeddings=self.config.cot_seq_length + 1,  # +1 for the start token
-            features=self.config.cot_cross_transformer_config.emb_dim,
+            features=self.config.cross_transformer_config.emb_dim,
             name="cot_pos_embed",
         )
-        self.cot_dropout = nn.Dropout(rate=self.config.cot_cross_transformer_config.dropout_rate)
-        self.cot_cross_transformer_layers = [
-            CrossTransformerLayer(self.config.cot_cross_transformer_config)
-            for _ in range(self.config.cot_cross_transformer_config.num_layers)
+        self.cot_dropout = nn.Dropout(rate=self.config.cross_transformer_config.dropout_rate)
+        self.cross_transformer_layers = [
+            CrossTransformerLayer(self.config.cross_transformer_config)
+            for _ in range(self.config.cross_transformer_config.num_layers)
         ]
 
         # Head layers.
@@ -222,8 +222,8 @@ class CoTTransformer(nn.Module):
         # CoT cross transformer block.
         bs, t, _ = cot_embeddings.shape
         causal_mask = jnp.tril(jnp.ones((bs, 1, t, t), bool))  # TODO: check if this is correct
-        for _ in range(self.config.cot_cross_transformer_config.num_repeat_model):
-            for layer in self.cot_cross_transformer_layers:
+        for _ in range(self.config.cross_transformer_config.num_repeat_model):
+            for layer in self.cross_transformer_layers:
                 cot_embeddings = layer(
                     self_embeddings=cot_embeddings,
                     cross_embeddings=inputs_embeddings,
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     cot_vocab_size = 10
     max_num_hops = 5
 
-    cot_module_config = CoTModuleConfig(
+    cot_transformer_config = CoTTransformerConfig(
         input_transformer_config=TransformerConfig(
             vocab_size=seq_length,
             output_vocab_size=None,
@@ -258,7 +258,7 @@ if __name__ == "__main__":
             dropout_rate=0.1,
             attention_dropout_rate=0.1,
         ),
-        cot_cross_transformer_config=TransformerConfig(
+        cross_transformer_config=TransformerConfig(
             vocab_size=None,
             output_vocab_size=None,
             emb_dim=384,
@@ -275,7 +275,7 @@ if __name__ == "__main__":
         output_vocab_size=seq_length,
         max_num_hops=max_num_hops,
     )
-    model = CoTTransformer(cot_module_config)
+    model = CoTTransformer(cot_transformer_config)
     key = jax.random.PRNGKey(0)
     example = jax.random.randint(key, (2, seq_length), minval=0, maxval=seq_length)
     num_hops = jnp.array([1, max_num_hops], int)

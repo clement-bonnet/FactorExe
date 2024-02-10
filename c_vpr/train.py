@@ -19,6 +19,7 @@ from c_vpr.augmented_transformer import (
     CoTModuleConfig,
     EncoderConfig,
 )
+from c_vpr.cot_transformer import CoTTransformer, CoTTransformerConfig
 from c_vpr.cycle import Cycle
 from c_vpr.env import C_VPR, Env
 from c_vpr.transformer_utils import TransformerConfig
@@ -397,16 +398,72 @@ class Trainer:
         metrics.update(grad_norm=grad_norm, rl_loss=rl_loss, cot_entropy=cot_entropy)
         return state, metrics
 
+    def train_step_rl_cot_transformer(
+        self, state: TrainState, key: chex.PRNGKey
+    ) -> tuple[TrainState, dict]:
+        num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
+
+        num_hops = jax.random.choice(
+            num_hops_key,
+            jnp.asarray(self.train_num_hops),
+            (self.batch_size,),
+            replace=True,
+        )
+        sample_keys = jax.random.split(sample_key, self.batch_size)
+        inputs, labels = jax.vmap(self._sample_n_hops_for_train)(sample_keys, num_hops)
+
+        def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
+            logits, (cot_tokens, cot_logits) = state.apply_fn(
+                variables={"params": params},
+                inputs=inputs,
+                deterministic=False,
+                num_hops=num_hops,
+                cot_key=cot_key,
+                cot_sampling=True,
+                rngs={"dropout": dropout_key},
+            )
+            cot_entropy = -jnp.mean(
+                jnp.sum(jax.nn.log_softmax(cot_logits) * jax.nn.softmax(cot_logits), -1)
+            )
+            supervised_loss = cross_entropy_loss(logits, labels)
+            rewards = jax.lax.stop_gradient(-cross_entropy_loss(logits, labels, mean=False))
+
+            cot_all_log_prob = jax.nn.log_softmax(cot_logits, axis=-1)
+            cot_log_prob = jnp.take_along_axis(
+                cot_all_log_prob, cot_tokens[..., None], axis=-1
+            ).squeeze(-1)
+            rl_loss = jnp.mean(-rewards[..., None] * cot_log_prob)
+
+            loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
+            return loss, (logits, rl_loss, cot_entropy)
+
+        grads, (logits, rl_loss, cot_entropy) = jax.grad(loss_fn, has_aux=True)(state.params)
+        state = state.apply_gradients(grads=grads)
+        metrics = self.compute_metrics(logits, labels)
+        grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
+        metrics.update(grad_norm=grad_norm, rl_loss=rl_loss, cot_entropy=cot_entropy)
+        return state, metrics
+
     def train_epoch(
         self, state: TrainState, key: chex.PRNGKey, num_steps: int
     ) -> tuple[TrainState, dict]:
         keys = jax.random.split(key, num_steps)
-        if self.mode == MODE.SUPERVISED:
-            state, metrics = jax.lax.scan(self.train_step_supervised, state, keys)
-        elif self.mode == MODE.COT:
-            state, metrics = jax.lax.scan(self.train_step_cot, state, keys)
-        elif self.mode == MODE.RL:
-            state, metrics = jax.lax.scan(self.train_step_rl, state, keys)
+        if isinstance(self.model, CoTTransformer):
+            if self.mode == MODE.SUPERVISED:
+                raise NotImplementedError(
+                    "CoTTransformer does not support supervised training yet."
+                )
+            elif self.mode == MODE.COT:
+                raise NotImplementedError("CoTTransformer does not support COT training yet.")
+            elif self.mode == MODE.RL:
+                state, metrics = jax.lax.scan(self.train_step_rl_cot_transformer, state, keys)
+        else:
+            if self.mode == MODE.SUPERVISED:
+                state, metrics = jax.lax.scan(self.train_step_supervised, state, keys)
+            elif self.mode == MODE.COT:
+                state, metrics = jax.lax.scan(self.train_step_cot, state, keys)
+            elif self.mode == MODE.RL:
+                state, metrics = jax.lax.scan(self.train_step_rl, state, keys)
         metrics = jax.tree_util.tree_map(jnp.mean, metrics)
         return state, metrics
 
@@ -755,10 +812,161 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     wandb.finish()
 
 
+def run_cot_transformer_exp(  # noqa: CCR001
+    env_name: str = "Cycle",
+    mode: MODE = MODE.RL,
+    train_num_hops: int | list[int] = 2,
+    eval_num_hops: int | list[int] | None = None,
+    seq_length: int = 40,
+    cot_seq_length: int = 2,
+    cot_vocab_size: int = 40,
+    input_encoder_num_repeat: int = 0,
+    input_encoder_num_layers: int = 0,
+    cross_transformer_num_repeat: int = 1,
+    cross_transformer_num_layers: int = 1,
+    emb_dim: int = 384,
+    num_heads: int = 6,
+    mlp_dim_factor: float = 4,
+    all_dropouts_rate: float = 0.0,
+    cot_loss_weight_mixing: float = 1.0,
+    rl_loss_weight_mixing: float = 1.0,
+    rl_baseline_batch_size: Optional[int] = None,
+    use_poppy: bool = False,
+    poppy_size: Optional[int] = None,
+    poppy_train_encoder_on_best_cot: bool = False,
+    poppy_train_cot_module_using_poppy: bool = False,
+    decode_from_sampled_cot_tokens: bool = True,
+    learning_rate: float = 3e-4,
+    num_iterations: int = 100_000,
+    batch_size: int = 256,
+    eval_size: int = 500,
+    log_every: int = 100,
+    seed: int = 0,
+    run_name: Optional[str] = None,
+) -> None:
+    if isinstance(train_num_hops, list):
+        max_num_hops = max(train_num_hops)
+        if isinstance(eval_num_hops, list):
+            max_num_hops = max(max_num_hops, max(eval_num_hops))
+        elif isinstance(eval_num_hops, int):
+            max_num_hops = max(max_num_hops, eval_num_hops)
+    elif isinstance(train_num_hops, int):
+        max_num_hops = train_num_hops
+        if isinstance(eval_num_hops, list):
+            max_num_hops = max(max_num_hops, max(eval_num_hops))
+        elif isinstance(eval_num_hops, int):
+            max_num_hops = max(max_num_hops, eval_num_hops)
+    else:
+        raise ValueError(f"Unknown type for train_num_hops: {type(train_num_hops)}")
+
+    if mode in [MODE.COT, MODE.RL]:
+        if cot_seq_length < max_num_hops:
+            raise ValueError(
+                f"cot_seq_length ({cot_seq_length}) is smaller than max_num_hops"
+                f"({max_num_hops}), which means that the chain of thought sequence is "
+                "too small compared to the number of hops. This is not encouraged and "
+                "raises an error for now."
+            )
+        if cot_vocab_size != seq_length:
+            raise ValueError(
+                f"cot_vocab_size ({cot_vocab_size}) is different from seq_length "
+                f"({seq_length}), which is not supported yet."
+            )
+    cot_transformer_config = CoTTransformerConfig(
+        input_transformer_config=TransformerConfig(
+            vocab_size=seq_length,
+            output_vocab_size=None,
+            num_repeat_model=input_encoder_num_repeat,
+            num_layers=input_encoder_num_layers,
+            num_heads=num_heads,
+            emb_dim=emb_dim,
+            mlp_dim_factor=mlp_dim_factor,
+            max_len=seq_length,
+            dropout_rate=all_dropouts_rate,
+            attention_dropout_rate=all_dropouts_rate,
+        ),
+        cross_transformer_config=TransformerConfig(
+            vocab_size=None,
+            output_vocab_size=None,
+            num_repeat_model=cross_transformer_num_repeat,
+            num_layers=cross_transformer_num_layers,
+            num_heads=num_heads,
+            emb_dim=emb_dim,
+            mlp_dim_factor=mlp_dim_factor,
+            max_len=None,
+            dropout_rate=all_dropouts_rate,
+            attention_dropout_rate=all_dropouts_rate,
+        ),
+        cot_seq_length=cot_seq_length,
+        cot_vocab_size=cot_vocab_size,
+        output_vocab_size=seq_length,
+        max_num_hops=max_num_hops,
+    )
+    model = CoTTransformer(cot_transformer_config)
+
+    if env_name == "C_VPR":
+        env = C_VPR(seq_length)
+    elif env_name == "Cycle":
+        env = Cycle(seq_length)  # type: ignore
+    else:
+        raise ValueError(f"Unknown environment: {env_name}")
+
+    wandb.init(project="FactorExe", config=cot_transformer_config.__dict__, name=run_name)
+    wandb.config.train_num_hops = train_num_hops
+    wandb.config.eval_num_hops = eval_num_hops
+    wandb.config.learning_rate = learning_rate
+    wandb.config.num_iterations = num_iterations
+    wandb.config.batch_size = batch_size
+    wandb.config.eval_size = eval_size
+    wandb.config.seed = seed
+    wandb.config.mode = mode.name
+    wandb.config.cot_loss_weight_mixing = cot_loss_weight_mixing
+    wandb.config.rl_loss_weight_mixing = rl_loss_weight_mixing
+    wandb.config.decode_from_sampled_cot_tokens = decode_from_sampled_cot_tokens
+
+    trainer = Trainer(
+        model,
+        env,
+        mode,
+        train_num_hops,
+        eval_num_hops,
+        seq_length,
+        batch_size,
+        eval_size,
+        cot_start_token=cot_transformer_config.cot_vocab_size,
+        cot_loss_weight_mixing=cot_loss_weight_mixing,
+        rl_loss_weight_mixing=rl_loss_weight_mixing,
+        rl_baseline_batch_size=rl_baseline_batch_size,
+        use_poppy=use_poppy,
+        poppy_size=poppy_size,
+        poppy_train_encoder_on_best_cot=poppy_train_encoder_on_best_cot,
+        poppy_train_cot_module_using_poppy=poppy_train_cot_module_using_poppy,
+        decode_from_sampled_cot_tokens=decode_from_sampled_cot_tokens,
+    )
+    key = jax.random.PRNGKey(seed)
+    state = trainer.init_train_state(key, learning_rate)
+    state = trainer.train(state, key, num_iterations, log_every)
+    trainer.save_checkpoint("checkpoint.msgpack", state, iteration=num_iterations)
+    wandb.finish()
+
+
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
 
+    run_cot_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=2,
+        eval_num_hops=2,
+        seq_length=40,
+        cross_transformer_num_layers=1,
+        cot_seq_length=2,
+        cot_vocab_size=40,
+        log_every=50,
+        num_iterations=50_000,
+        run_name="Cycle 2-40 RL CoTTransformer",
+    )
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.RL,
