@@ -973,8 +973,22 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         log_every=200,
         num_iterations=200_000,
-        cot_entropy_weight=1e-3,
-        run_name="Cycle 1-40 RL CoTTransformer entropy_coeff 1e-3",
+        cot_entropy_weight=1e-2,
+        run_name="Cycle 1-40 RL CoTTransformer entropy_coeff 1e-2",
+    )
+    run_cot_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=1,
+        eval_num_hops=1,
+        seq_length=40,
+        cross_transformer_num_layers=1,
+        cot_seq_length=1,
+        cot_vocab_size=40,
+        log_every=200,
+        num_iterations=200_000,
+        cot_entropy_weight=1e-1,
+        run_name="Cycle 1-40 RL CoTTransformer entropy_coeff 1e-1",
     )
     # run_cot_transformer_exp(
     #     env_name="Cycle",
