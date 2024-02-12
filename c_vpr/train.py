@@ -1041,6 +1041,47 @@ if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
 
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.SUPERVISED,
+        train_num_hops=1,
+        eval_num_hops=1,
+        seq_length=40,
+        cot_module=False,
+        encoder_cross_transformer_num_layers=1,
+        log_every=200,
+        num_iterations=200_000,
+        batch_size=64,
+        run_name="Cycle 1-40 SUPERVISED T1",
+    )
+    run_cot_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=1,
+        eval_num_hops=1,
+        seq_length=40,
+        cross_transformer_num_layers=1,
+        cot_seq_length=1,
+        cot_vocab_size=40,
+        log_every=200,
+        num_iterations=200_000,
+        batch_size=64,
+        rl_use_meta_reward=True,
+        run_name="Cycle 1-40 RL CoTTransformer T1 meta_reward",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.SUPERVISED,
+        train_num_hops=2,
+        eval_num_hops=2,
+        seq_length=40,
+        cot_module=False,
+        encoder_cross_transformer_num_layers=1,
+        log_every=200,
+        num_iterations=200_000,
+        batch_size=64,
+        run_name="Cycle 2-40 SUPERVISED T1",
+    )
     run_cot_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
@@ -1052,8 +1093,9 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         log_every=200,
         num_iterations=200_000,
+        batch_size=64,
         rl_use_meta_reward=True,
-        run_name="Cycle 2-40 RL CoTTransformer meta_reward",
+        run_name="Cycle 2-40 RL CoTTransformer T1 meta_reward",
     )
 
     # run_cot_transformer_exp(
