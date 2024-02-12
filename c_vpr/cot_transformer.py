@@ -238,6 +238,31 @@ class CoTTransformer(nn.Module):
             logits = self.cot_linear_head(cot_embeddings)
         return logits
 
+    def get_cot_log_probs(
+        self,
+        inputs: chex.Array,
+        cot_tokens: chex.Array,
+        deterministic: bool,
+        num_hops: Optional[chex.Array] = None,
+        pad_mask: Optional[chex.Array] = None,
+    ) -> chex.Array:
+        inputs_embeddings = self.encode_inputs(
+            inputs=inputs, deterministic=deterministic, num_hops=num_hops, pad_mask=pad_mask
+        )
+        cot_tokens_all_logits = self.generate_logits(
+            cot_tokens=cot_tokens,
+            inputs_embeddings=inputs_embeddings,
+            deterministic=deterministic,
+            inputs_pad_mask=pad_mask,
+        )
+        cot_tokens_all_log_probs = jax.nn.log_softmax(cot_tokens_all_logits, axis=-1)
+        # TODO: check if this is correct
+        cot_tokens_log_probs = jnp.take_along_axis(
+            cot_tokens_all_log_probs, cot_tokens[:, None, :], axis=-1
+        )[:, 0, :]
+        cot_log_probs = jnp.sum(cot_tokens_log_probs, axis=-1)
+        return cot_log_probs
+
 
 if __name__ == "__main__":
     seq_length = 10

@@ -53,6 +53,7 @@ class Trainer:
         poppy_size: Optional[int] = None,
         poppy_train_encoder_on_best_cot: bool = False,
         poppy_train_cot_module_using_poppy: bool = False,
+        rl_use_meta_reward: bool = False,
         decode_from_sampled_cot_tokens: bool = False,
     ) -> None:
         self.model = model
@@ -85,6 +86,7 @@ class Trainer:
         self.poppy_size = poppy_size
         self.poppy_train_encoder_on_best_cot = poppy_train_encoder_on_best_cot
         self.poppy_train_cot_module_using_poppy = poppy_train_cot_module_using_poppy
+        self.rl_use_meta_reward = rl_use_meta_reward
         self.decode_from_sampled_cot_tokens = decode_from_sampled_cot_tokens
 
     def init_train_state(
@@ -428,13 +430,88 @@ class Trainer:
                 jnp.sum(jax.nn.log_softmax(cot_logits) * jax.nn.softmax(cot_logits), -1)
             )
             supervised_loss = cross_entropy_loss(logits, labels)
-            rewards = jax.lax.stop_gradient(-cross_entropy_loss(logits, labels, mean=False))
+            if self.rl_use_meta_reward:
+                alpha = 1e-3
+                # TODO: increase credit assignment by smartly computing the gradient for each token
+                # instead of the whole action sequence (don't sum log probs of each token).
 
-            cot_all_log_prob = jax.nn.log_softmax(cot_logits, axis=-1)
-            cot_log_prob = jnp.take_along_axis(
-                cot_all_log_prob, cot_tokens[..., None], axis=-1
-            ).squeeze(-1)
-            rl_loss = jnp.mean(-rewards[..., None] * cot_log_prob)
+                def partial_loss(
+                    params: dict, input: chex.Array, num_hop: chex.Array, label: chex.Array
+                ) -> chex.Array:
+                    logits, (cot_tokens, cot_tokens_logits) = state.apply_fn(
+                        variables={"params": params},
+                        inputs=input[None],
+                        deterministic=True,
+                        num_hops=num_hop[None],
+                    )
+                    logits, cot_tokens, cot_tokens_logits = (
+                        logits.squeeze(0),
+                        cot_tokens.squeeze(0),
+                        cot_tokens_logits.squeeze(0),
+                    )
+                    p_loss = cross_entropy_loss(logits, label, mean=False)
+                    return p_loss, (cot_tokens, cot_tokens_logits)
+
+                partial_grads, (cot_tokens, cot_tokens_logits) = jax.vmap(
+                    jax.grad(partial_loss, has_aux=True), in_axes=(None, 0, 0, 0)
+                )(state.params, inputs, num_hops, labels)
+                updated_params = jax.tree_util.tree_map(
+                    lambda param, partial_grad: param[None] - alpha * partial_grad,
+                    state.params,
+                    partial_grads,
+                )
+                inputs_prime, cot_tokens_prime, num_hops_prime, labels_prime = (
+                    jnp.roll(inputs, 1, axis=0),
+                    jnp.roll(cot_tokens, 1, axis=0),
+                    jnp.roll(num_hops, 1, axis=0),
+                    jnp.roll(labels, 1, axis=0),
+                )
+                partial_losses_prime, _ = jax.vmap(partial_loss)(
+                    updated_params, inputs_prime, num_hops_prime, labels_prime
+                )
+
+                def single_get_cot_log_probs(params, input, cot_token, num_hop):
+                    return state.apply_fn(
+                        variables={"params": params},
+                        inputs=input[None],
+                        cot_tokens=cot_token[None],
+                        deterministic=True,
+                        num_hops=num_hop[None],
+                        method=self.model.get_cot_log_probs,
+                    ).squeeze(0)
+
+                cot_log_probs_prime_update_params = jax.vmap(single_get_cot_log_probs)(
+                    updated_params, inputs_prime, cot_tokens_prime, num_hops_prime
+                )
+                cot_tokens_all_log_probs_prime = jax.nn.log_softmax(
+                    jnp.roll(cot_tokens_logits, 1, axis=0)
+                )
+                cot_tokens_log_probs_prime = jnp.take_along_axis(
+                    cot_tokens_all_log_probs_prime, cot_tokens_prime[..., None], axis=-1
+                ).squeeze(-1)
+                cot_log_probs_prime = jnp.sum(cot_tokens_log_probs_prime, axis=-1)
+                importance_sampling = jnp.exp(
+                    cot_log_probs_prime_update_params - cot_log_probs_prime
+                )
+                cot_tokens_all_log_probs = jax.nn.log_softmax(cot_tokens_logits)
+                cot_tokens_log_probs = jnp.take_along_axis(
+                    cot_tokens_all_log_probs, cot_tokens[..., None], axis=-1
+                ).squeeze(-1)
+                cot_log_probs = jnp.sum(cot_tokens_log_probs, axis=-1)
+                rl_losses = jax.lax.stop_gradient(importance_sampling) * (
+                    cot_log_probs * jax.lax.stop_gradient(partial_losses_prime)
+                    + cot_log_probs_prime_update_params
+                    * jax.lax.stop_gradient(partial_losses_prime)
+                    + partial_losses_prime
+                )
+                rl_loss = jnp.mean(rl_losses)
+            else:
+                rewards = jax.lax.stop_gradient(-cross_entropy_loss(logits, labels, mean=False))
+                cot_all_log_prob = jax.nn.log_softmax(cot_logits, axis=-1)
+                cot_log_prob = jnp.take_along_axis(
+                    cot_all_log_prob, cot_tokens[..., None], axis=-1
+                ).squeeze(-1)
+                rl_loss = jnp.mean(-rewards[..., None] * cot_log_prob)
 
             loss = (
                 supervised_loss
@@ -842,6 +919,7 @@ def run_cot_transformer_exp(  # noqa: CCR001
     poppy_size: Optional[int] = None,
     poppy_train_encoder_on_best_cot: bool = False,
     poppy_train_cot_module_using_poppy: bool = False,
+    rl_use_meta_reward: bool = False,
     decode_from_sampled_cot_tokens: bool = True,
     learning_rate: float = 3e-4,
     num_iterations: int = 100_000,
@@ -949,6 +1027,7 @@ def run_cot_transformer_exp(  # noqa: CCR001
         poppy_size=poppy_size,
         poppy_train_encoder_on_best_cot=poppy_train_encoder_on_best_cot,
         poppy_train_cot_module_using_poppy=poppy_train_cot_module_using_poppy,
+        rl_use_meta_reward=rl_use_meta_reward,
         decode_from_sampled_cot_tokens=decode_from_sampled_cot_tokens,
     )
     key = jax.random.PRNGKey(seed)
@@ -973,23 +1052,11 @@ if __name__ == "__main__":
         cot_vocab_size=40,
         log_every=200,
         num_iterations=200_000,
-        cot_entropy_weight=1e-2,
-        run_name="Cycle 1-40 RL CoTTransformer entropy_coeff 1e-2",
+        cot_entropy_weight=0.0,
+        rl_use_meta_reward=True,
+        run_name="Cycle 1-40 RL CoTTransformer meta_reward",
     )
-    run_cot_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=1,
-        eval_num_hops=1,
-        seq_length=40,
-        cross_transformer_num_layers=1,
-        cot_seq_length=1,
-        cot_vocab_size=40,
-        log_every=200,
-        num_iterations=200_000,
-        cot_entropy_weight=1e-1,
-        run_name="Cycle 1-40 RL CoTTransformer entropy_coeff 1e-1",
-    )
+
     # run_cot_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.RL,
