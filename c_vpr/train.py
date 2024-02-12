@@ -431,12 +431,17 @@ class Trainer:
             )
             supervised_loss = cross_entropy_loss(logits, labels)
             if self.rl_use_meta_reward:
+                del cot_tokens, cot_logits
                 alpha = 1e-3
                 # TODO: increase credit assignment by smartly computing the gradient for each token
                 # instead of the whole action sequence (don't sum log probs of each token).
 
                 def partial_loss(
-                    params: dict, input: chex.Array, num_hop: chex.Array, label: chex.Array
+                    params: dict,
+                    input: chex.Array,
+                    num_hop: chex.Array,
+                    label: chex.Array,
+                    cot_key: chex.PRNGKey,
                 ) -> chex.Array:
                     logits, (cot_tokens, cot_tokens_logits) = state.apply_fn(
                         variables={"params": params},
@@ -454,12 +459,13 @@ class Trainer:
                     p_loss = cross_entropy_loss(logits, label, mean=False)
                     return p_loss, (cot_tokens, cot_tokens_logits)
 
+                cot_keys = jax.random.split(cot_key, labels.shape[0])
                 partial_grads, (cot_tokens, cot_tokens_logits) = jax.vmap(
-                    jax.grad(partial_loss, has_aux=True), in_axes=(None, 0, 0, 0)
-                )(state.params, inputs, num_hops, labels)
+                    jax.grad(partial_loss, has_aux=True), in_axes=(None, 0, 0, 0, 0)
+                )(params, inputs, num_hops, labels, cot_keys)
                 updated_params = jax.tree_util.tree_map(
                     lambda param, partial_grad: param[None] - alpha * partial_grad,
-                    state.params,
+                    params,
                     partial_grads,
                 )
                 inputs_prime, cot_tokens_prime, num_hops_prime, labels_prime = (
@@ -469,7 +475,7 @@ class Trainer:
                     jnp.roll(labels, 1, axis=0),
                 )
                 partial_losses_prime, _ = jax.vmap(partial_loss)(
-                    updated_params, inputs_prime, num_hops_prime, labels_prime
+                    updated_params, inputs_prime, num_hops_prime, labels_prime, cot_keys
                 )
 
                 def single_get_cot_log_probs(params, input, cot_token, num_hop):
@@ -507,6 +513,7 @@ class Trainer:
                     + partial_losses_prime
                 )
                 rl_loss = jnp.mean(rl_losses)
+                importance_sampling_log = jnp.mean(importance_sampling)
             else:
                 rewards = jax.lax.stop_gradient(-cross_entropy_loss(logits, labels, mean=False))
                 cot_all_log_prob = jax.nn.log_softmax(cot_logits, axis=-1)
@@ -514,19 +521,27 @@ class Trainer:
                     cot_all_log_prob, cot_tokens[..., None], axis=-1
                 ).squeeze(-1)
                 rl_loss = jnp.mean(-rewards[..., None] * cot_log_prob)
+                importance_sampling_log = None
 
             loss = (
                 supervised_loss
                 + self.rl_loss_weight_mixing * rl_loss
                 - self.cot_entropy_weight * cot_entropy
             )
-            return loss, (logits, rl_loss, cot_entropy)
+            return loss, (logits, rl_loss, cot_entropy, importance_sampling_log)
 
-        grads, (logits, rl_loss, cot_entropy) = jax.grad(loss_fn, has_aux=True)(state.params)
+        grads, (logits, rl_loss, cot_entropy, importance_sampling) = jax.grad(
+            loss_fn, has_aux=True
+        )(state.params)
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
         grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
-        metrics.update(grad_norm=grad_norm, rl_loss=rl_loss, cot_entropy=cot_entropy)
+        metrics.update(
+            grad_norm=grad_norm,
+            rl_loss=rl_loss,
+            cot_entropy=cot_entropy,
+            importance_sampling=importance_sampling,
+        )
         return state, metrics
 
     def train_epoch(

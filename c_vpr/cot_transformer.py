@@ -260,10 +260,13 @@ class CoTTransformer(nn.Module):
             inputs_embeddings=inputs_embeddings,
             deterministic=deterministic,
             inputs_pad_mask=pad_mask,
+            final_forward=False,
         )
+        # Remove the last prediction.
+        cot_tokens_all_logits = cot_tokens_all_logits[:, :-1, :]
         cot_tokens_all_log_probs = jax.nn.log_softmax(cot_tokens_all_logits, axis=-1)
         cot_tokens_log_probs = jnp.take_along_axis(
-            cot_tokens_all_log_probs, cot_tokens[:, :, None], axis=-1
+            cot_tokens_all_log_probs, cot_tokens[:, 1:, None], axis=-1
         ).squeeze(-1)
         cot_log_probs = jnp.sum(cot_tokens_log_probs, axis=-1)
         return cot_log_probs
