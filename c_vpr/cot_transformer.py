@@ -256,10 +256,9 @@ class CoTTransformer(nn.Module):
             inputs_pad_mask=pad_mask,
         )
         cot_tokens_all_log_probs = jax.nn.log_softmax(cot_tokens_all_logits, axis=-1)
-        # TODO: check if this is correct
         cot_tokens_log_probs = jnp.take_along_axis(
-            cot_tokens_all_log_probs, cot_tokens[:, None, :], axis=-1
-        )[:, 0, :]
+            cot_tokens_all_log_probs, cot_tokens[:, :, None], axis=-1
+        ).squeeze(-1)
         cot_log_probs = jnp.sum(cot_tokens_log_probs, axis=-1)
         return cot_log_probs
 
