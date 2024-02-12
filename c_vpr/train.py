@@ -1044,17 +1044,16 @@ if __name__ == "__main__":
     run_cot_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
-        train_num_hops=1,
-        eval_num_hops=1,
+        train_num_hops=2,
+        eval_num_hops=2,
         seq_length=40,
         cross_transformer_num_layers=1,
-        cot_seq_length=1,
+        cot_seq_length=2,
         cot_vocab_size=40,
         log_every=200,
         num_iterations=200_000,
-        cot_entropy_weight=0.0,
         rl_use_meta_reward=True,
-        run_name="Cycle 1-40 RL CoTTransformer meta_reward",
+        run_name="Cycle 2-40 RL CoTTransformer meta_reward",
     )
 
     # run_cot_transformer_exp(
