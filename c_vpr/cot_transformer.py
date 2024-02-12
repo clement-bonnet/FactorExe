@@ -221,7 +221,7 @@ class CoTTransformer(nn.Module):
 
         # CoT cross transformer block.
         bs, t, _ = cot_embeddings.shape
-        causal_mask = jnp.tril(jnp.ones((bs, 1, t, t), bool))  # TODO: check if this is correct
+        causal_mask = jnp.tril(jnp.ones((bs, 1, t, t), bool))
         for _ in range(self.config.cross_transformer_config.num_repeat_model):
             for layer in self.cross_transformer_layers:
                 cot_embeddings = layer(
@@ -246,6 +246,12 @@ class CoTTransformer(nn.Module):
         num_hops: Optional[chex.Array] = None,
         pad_mask: Optional[chex.Array] = None,
     ) -> chex.Array:
+        assert cot_tokens.ndim == 2  # (B, T_C)
+        # Pad cot_tokens with start token at the beginning.
+        cot_tokens = jnp.pad(
+            cot_tokens, ((0, 0), (1, 0)), constant_values=self.config.cot_vocab_size
+        )
+
         inputs_embeddings = self.encode_inputs(
             inputs=inputs, deterministic=deterministic, num_hops=num_hops, pad_mask=pad_mask
         )
