@@ -376,40 +376,44 @@ class Trainer:
                     jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
                 )
             )
-            params_prime = jax.tree_util.tree_map(
-                lambda param, partial_grad: param[None] - alpha * partial_grad,
-                params,
-                partial_grads,
-            )
-
-            def losses_prime_fn(
-                params: dict,
-                inputs: chex.Array,
-                num_hops: chex.Array,
-                labels: chex.Array,
-                cot_key: chex.PRNGKey,
-                dropout_key: chex.PRNGKey,
-            ) -> chex.Array:
-                logits, _ = state.apply_fn(
-                    variables={"params": params},
-                    inputs=inputs,
-                    deterministic=False,
-                    num_hops=num_hops,
-                    cot_sampling=True,
-                    cot_key=cot_key,
-                    rngs={"dropout": dropout_key},
+            use_meta = False
+            if use_meta:
+                params_prime = jax.tree_util.tree_map(
+                    lambda param, partial_grad: param[None] - alpha * partial_grad,
+                    params,
+                    partial_grads,
                 )
-                return cross_entropy_loss(logits, labels, mean=False)
 
-            cot_keys = jax.random.split(cot_key_2, labels.shape[0])
-            dropout_keys = jax.random.split(dropout_key_2, labels.shape[0])
-            losses_prime = jax.vmap(losses_prime_fn, in_axes=(0, None, None, None, 0, 0))(
-                params_prime, inputs, num_hops, labels, cot_keys, dropout_keys
-            )
-            # Average losses_prime for all but the diagonal elements.
-            diagonal_mask = jnp.ones_like(losses_prime) - jnp.eye(*losses_prime.shape)
-            loss_prime = jnp.mean(losses_prime * diagonal_mask, axis=-1)
-            rewards = jax.lax.stop_gradient(-loss_prime)
+                def losses_prime_fn(
+                    params: dict,
+                    inputs: chex.Array,
+                    num_hops: chex.Array,
+                    labels: chex.Array,
+                    cot_key: chex.PRNGKey,
+                    dropout_key: chex.PRNGKey,
+                ) -> chex.Array:
+                    logits, _ = state.apply_fn(
+                        variables={"params": params},
+                        inputs=inputs,
+                        deterministic=False,
+                        num_hops=num_hops,
+                        cot_sampling=True,
+                        cot_key=cot_key,
+                        rngs={"dropout": dropout_key},
+                    )
+                    return cross_entropy_loss(logits, labels, mean=False)
+
+                cot_keys = jax.random.split(cot_key_2, labels.shape[0])
+                dropout_keys = jax.random.split(dropout_key_2, labels.shape[0])
+                losses_prime = jax.vmap(losses_prime_fn, in_axes=(0, None, None, None, 0, 0))(
+                    params_prime, inputs, num_hops, labels, cot_keys, dropout_keys
+                )
+                # Average losses_prime for all but the diagonal elements.
+                diagonal_mask = jnp.ones_like(losses_prime) - jnp.eye(*losses_prime.shape)
+                loss_prime = jnp.mean(losses_prime * diagonal_mask, axis=-1)
+                rewards = jax.lax.stop_gradient(-loss_prime)
+            else:
+                rewards = jax.lax.stop_gradient(-supervised_losses)
 
             cot_tokens_all_log_prob = jax.nn.log_softmax(cot_tokens_logits, axis=-1)
             cot_tokens_log_prob = jnp.take_along_axis(
@@ -1171,11 +1175,11 @@ if __name__ == "__main__":
         cot_module=True,
         cot_seq_length=2,
         cot_vocab_size=40,
-        log_every=200,
-        num_iterations=200_000,
+        log_every=10,
+        num_iterations=10_000,
         batch_size=64,
         rl_use_meta_reward=True,
-        run_name="Cycle 1-40 RL T1 meta_reward",
+        run_name="Cycle 1-40 RL T1",
     )
 
     # run_cot_transformer_exp(
