@@ -376,7 +376,7 @@ class Trainer:
                     jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
                 )
             )
-            use_meta = False
+            use_meta = True
             if use_meta:
                 params_prime = jax.tree_util.tree_map(
                     lambda param, partial_grad: param[None] - alpha * partial_grad,
