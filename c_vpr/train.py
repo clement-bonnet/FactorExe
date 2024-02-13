@@ -54,6 +54,7 @@ class Trainer:
         poppy_train_encoder_on_best_cot: bool = False,
         poppy_train_cot_module_using_poppy: bool = False,
         rl_use_meta_reward: bool = False,
+        rl_meta_reward_alpha: float = 1e-3,
         decode_from_sampled_cot_tokens: bool = False,
     ) -> None:
         self.model = model
@@ -87,6 +88,7 @@ class Trainer:
         self.poppy_train_encoder_on_best_cot = poppy_train_encoder_on_best_cot
         self.poppy_train_cot_module_using_poppy = poppy_train_cot_module_using_poppy
         self.rl_use_meta_reward = rl_use_meta_reward
+        self.rl_meta_reward_alpha = rl_meta_reward_alpha
         self.decode_from_sampled_cot_tokens = decode_from_sampled_cot_tokens
 
     def init_train_state(
@@ -336,7 +338,7 @@ class Trainer:
             loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
             return loss, (logits, rl_loss, cot_entropy)
 
-        def meta_reward_loss_fn(params: dict, alpha: float = 1e-3) -> tuple[TrainState, chex.Array]:
+        def rl_loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
             cot_key_1, cot_key_2 = jax.random.split(cot_key, 2)
             dropout_key_1, dropout_key_2 = jax.random.split(dropout_key, 2)
 
@@ -376,10 +378,10 @@ class Trainer:
                     jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
                 )
             )
-            use_meta = True
-            if use_meta:
+            if self.rl_use_meta_reward:
                 params_prime = jax.tree_util.tree_map(
-                    lambda param, partial_grad: param[None] - alpha * partial_grad,
+                    lambda param, partial_grad: param[None]
+                    - self.rl_meta_reward_alpha * partial_grad,
                     params,
                     partial_grads,
                 )
@@ -425,66 +427,8 @@ class Trainer:
             loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
             return loss, (logits, rl_loss, cot_entropy)
 
-        def rl_loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
-            logits, (cot_tokens, cot_logits) = state.apply_fn(
-                variables={"params": params},
-                inputs=inputs,
-                deterministic=False,
-                num_hops=num_hops,
-                cot_key=cot_key,
-                cot_sampling=True,
-                rngs={"dropout": dropout_key},
-            )
-            cot_entropy = -jnp.mean(
-                jnp.sum(jax.nn.log_softmax(cot_logits) * jax.nn.softmax(cot_logits), -1)
-            )
-            supervised_loss = cross_entropy_loss(logits, labels)
-            rewards = jax.lax.stop_gradient(-cross_entropy_loss(logits, labels, mean=False))
-
-            if self.rl_baseline_batch_size is not None:
-
-                def baseline_apply(
-                    inputs: chex.Array, cot_key: chex.PRNGKey
-                ) -> tuple[chex.Array, tuple[chex.Array, chex.Array]]:
-                    return state.apply_fn(  # type: ignore
-                        variables={"params": params},
-                        inputs=inputs,
-                        deterministic=False,
-                        num_hops=num_hops,
-                        cot_key=cot_key,
-                        cot_sampling=True,
-                        rngs={"dropout": dropout_key},
-                    )
-
-                b_cot_keys = jax.random.split(cot_key, self.rl_baseline_batch_size)
-                b_logits, _ = jax.vmap(baseline_apply)(
-                    inputs[None].repeat(self.rl_baseline_batch_size, axis=0), b_cot_keys
-                )
-                b_rewards = jax.lax.stop_gradient(
-                    -cross_entropy_loss(
-                        b_logits,
-                        labels[None].repeat(self.rl_baseline_batch_size, axis=0),
-                        mean=False,
-                    )
-                )
-                # Subtract the mean of the baseline rewards.
-                rewards -= jnp.mean(b_rewards, axis=0)
-
-            cot_all_log_prob = jax.nn.log_softmax(cot_logits, axis=-1)
-            cot_log_prob = jnp.take_along_axis(
-                cot_all_log_prob, cot_tokens[..., None], axis=-1
-            ).squeeze(-1)
-            rl_loss = jnp.mean(-rewards[..., None] * cot_log_prob)
-
-            loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
-            return loss, (logits, rl_loss, cot_entropy)
-
         if self.rl_use_poppy:
             grads, (logits, rl_loss, cot_entropy) = jax.grad(poppy_loss_fn, has_aux=True)(
-                state.params
-            )
-        elif self.rl_use_meta_reward:
-            grads, (logits, rl_loss, cot_entropy) = jax.grad(meta_reward_loss_fn, has_aux=True)(
                 state.params
             )
         else:
@@ -835,6 +779,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     rl_loss_weight_mixing: float = 1.0,
     rl_baseline_batch_size: Optional[int] = None,
     rl_use_meta_reward: bool = False,
+    rl_meta_reward_alpha: float = 1e-3,
     rl_use_poppy: bool = False,
     poppy_size: Optional[int] = None,
     poppy_train_encoder_on_best_cot: bool = False,
@@ -994,6 +939,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
         rl_loss_weight_mixing=rl_loss_weight_mixing,
         rl_baseline_batch_size=rl_baseline_batch_size,
         rl_use_meta_reward=rl_use_meta_reward,
+        rl_meta_reward_alpha=rl_meta_reward_alpha,
         rl_use_poppy=rl_use_poppy,
         poppy_size=poppy_size,
         poppy_train_encoder_on_best_cot=poppy_train_encoder_on_best_cot,
@@ -1152,35 +1098,111 @@ def run_cot_transformer_exp(  # noqa: CCR001
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
-
-    # run_augmented_transformer_exp(
-    #     env_name="Cycle",
-    #     mode=MODE.SUPERVISED,
-    #     train_num_hops=1,
-    #     eval_num_hops=1,
-    #     seq_length=40,
-    #     cot_module=False,
-    #     encoder_cross_transformer_num_layers=1,
-    #     log_every=200,
-    #     num_iterations=200_000,
-    #     batch_size=64,
-    #     run_name="Cycle 1-40 SUPERVISED T1",
-    # )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=1,
-        eval_num_hops=1,
-        seq_length=40,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_vocab_size=40,
-        log_every=10,
-        num_iterations=10_000,
-        batch_size=64,
-        rl_use_meta_reward=True,
-        run_name="Cycle 1-40 RL T1",
-    )
+    for num_hops in [1, 2, [1, 2], 3, [1, 2, 3]]:
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.SUPERVISED,
+            train_num_hops=num_hops,
+            eval_num_hops=num_hops,
+            seq_length=40,
+            cot_module=False,
+            log_every=10,
+            num_iterations=10_000,
+            batch_size=64,
+            run_name=f"Cycle {num_hops}-40 SUPERVISED T1",
+        )
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.COT,
+            train_num_hops=num_hops,
+            eval_num_hops=num_hops,
+            seq_length=40,
+            cot_module=True,
+            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+            cot_vocab_size=40,
+            log_every=10,
+            num_iterations=10_000,
+            batch_size=64,
+            run_name=f"Cycle {num_hops}-40 COT T1",
+        )
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=num_hops,
+            eval_num_hops=num_hops,
+            seq_length=40,
+            cot_module=True,
+            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+            cot_vocab_size=40,
+            log_every=10,
+            num_iterations=10_000,
+            batch_size=64,
+            run_name=f"Cycle {num_hops}-40 RL T1",
+        )
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=num_hops,
+            eval_num_hops=num_hops,
+            seq_length=40,
+            cot_module=True,
+            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+            cot_vocab_size=40,
+            log_every=10,
+            num_iterations=10_000,
+            batch_size=64,
+            rl_use_meta_reward=True,
+            rl_meta_reward_alpha=1e-4,
+            run_name=f"Cycle {num_hops}-40 RL_meta_1e-4 T1",
+        )
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=num_hops,
+            eval_num_hops=num_hops,
+            seq_length=40,
+            cot_module=True,
+            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+            cot_vocab_size=40,
+            log_every=10,
+            num_iterations=10_000,
+            batch_size=64,
+            rl_use_meta_reward=True,
+            rl_meta_reward_alpha=1e-3,
+            run_name=f"Cycle {num_hops}-40 RL_meta_1e-3 T1",
+        )
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=num_hops,
+            eval_num_hops=num_hops,
+            seq_length=40,
+            cot_module=True,
+            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+            cot_vocab_size=40,
+            log_every=10,
+            num_iterations=10_000,
+            batch_size=64,
+            rl_use_meta_reward=True,
+            rl_meta_reward_alpha=1e-2,
+            run_name=f"Cycle {num_hops}-40 RL_meta_1e-2 T1",
+        )
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=num_hops,
+            eval_num_hops=num_hops,
+            seq_length=40,
+            cot_module=True,
+            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+            cot_vocab_size=40,
+            log_every=10,
+            num_iterations=10_000,
+            batch_size=64,
+            rl_use_meta_reward=True,
+            rl_meta_reward_alpha=1e-1,
+            run_name=f"Cycle {num_hops}-40 RL_meta_1e-1 T1",
+        )
 
     # run_cot_transformer_exp(
     #     env_name="Cycle",
