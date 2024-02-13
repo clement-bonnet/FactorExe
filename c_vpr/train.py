@@ -49,7 +49,7 @@ class Trainer:
         rl_loss_weight_mixing: float = 1.0,
         cot_entropy_weight: float = 0.0,
         rl_baseline_batch_size: Optional[int] = None,
-        use_poppy: bool = False,
+        rl_use_poppy: bool = False,
         poppy_size: Optional[int] = None,
         poppy_train_encoder_on_best_cot: bool = False,
         poppy_train_cot_module_using_poppy: bool = False,
@@ -82,7 +82,7 @@ class Trainer:
         self.rl_loss_weight_mixing = rl_loss_weight_mixing
         self.rl_baseline_batch_size = rl_baseline_batch_size
         self.cot_entropy_weight = cot_entropy_weight
-        self.use_poppy = use_poppy
+        self.rl_use_poppy = rl_use_poppy
         self.poppy_size = poppy_size
         self.poppy_train_encoder_on_best_cot = poppy_train_encoder_on_best_cot
         self.poppy_train_cot_module_using_poppy = poppy_train_cot_module_using_poppy
@@ -336,7 +336,92 @@ class Trainer:
             loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
             return loss, (logits, rl_loss, cot_entropy)
 
-        def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
+        def meta_reward_loss_fn(params: dict, alpha: float = 1e-3) -> tuple[TrainState, chex.Array]:
+            cot_key_1, cot_key_2 = jax.random.split(cot_key, 2)
+            dropout_key_1, dropout_key_2 = jax.random.split(dropout_key, 2)
+
+            def partial_loss_fn(
+                params: dict,
+                input: chex.Array,
+                num_hop: chex.Array,
+                label: chex.Array,
+                cot_key: chex.PRNGKey,
+                dropout_key: chex.PRNGKey,
+            ) -> chex.Array:
+                logits, (cot_tokens, cot_tokens_logits) = state.apply_fn(
+                    variables={"params": params},
+                    inputs=input[None],
+                    deterministic=False,
+                    num_hops=num_hop[None],
+                    cot_sampling=True,
+                    cot_key=cot_key,
+                    rngs={"dropout": dropout_key},
+                )
+                logits, cot_tokens, cot_tokens_logits = (
+                    logits.squeeze(0),
+                    cot_tokens.squeeze(0),
+                    cot_tokens_logits.squeeze(0),
+                )
+                partial_loss = cross_entropy_loss(logits, label)
+                return partial_loss, (logits, cot_tokens, cot_tokens_logits)
+
+            cot_keys = jax.random.split(cot_key_1, labels.shape[0])
+            dropout_keys = jax.random.split(dropout_key_1, labels.shape[0])
+            (supervised_losses, (logits, cot_tokens, cot_tokens_logits)), partial_grads = jax.vmap(
+                jax.value_and_grad(partial_loss_fn, has_aux=True), in_axes=(None, 0, 0, 0, 0, 0)
+            )(params, inputs, num_hops, labels, cot_keys, dropout_keys)
+            supervised_loss = jnp.mean(supervised_losses)
+            cot_entropy = -jnp.mean(
+                jnp.sum(
+                    jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
+                )
+            )
+            params_prime = jax.tree_util.tree_map(
+                lambda param, partial_grad: param[None] - alpha * partial_grad,
+                params,
+                partial_grads,
+            )
+
+            def losses_prime_fn(
+                params: dict,
+                inputs: chex.Array,
+                num_hops: chex.Array,
+                labels: chex.Array,
+                cot_key: chex.PRNGKey,
+                dropout_key: chex.PRNGKey,
+            ) -> chex.Array:
+                logits, _ = state.apply_fn(
+                    variables={"params": params},
+                    inputs=inputs,
+                    deterministic=False,
+                    num_hops=num_hops,
+                    cot_sampling=True,
+                    cot_key=cot_key,
+                    rngs={"dropout": dropout_key},
+                )
+                return cross_entropy_loss(logits, labels, mean=False)
+
+            cot_keys = jax.random.split(cot_key_2, labels.shape[0])
+            dropout_keys = jax.random.split(dropout_key_2, labels.shape[0])
+            losses_prime = jax.vmap(losses_prime_fn, in_axes=(0, None, None, None, 0, 0))(
+                params_prime, inputs, num_hops, labels, cot_keys, dropout_keys
+            )
+            # Average losses_prime for all but the diagonal elements.
+            diagonal_mask = jnp.ones_like(losses_prime) - jnp.eye(*losses_prime.shape)
+            loss_prime = jnp.mean(losses_prime * diagonal_mask, axis=-1)
+            rewards = jax.lax.stop_gradient(-loss_prime)
+
+            cot_tokens_all_log_prob = jax.nn.log_softmax(cot_tokens_logits, axis=-1)
+            cot_tokens_log_prob = jnp.take_along_axis(
+                cot_tokens_all_log_prob, cot_tokens[..., None], axis=-1
+            ).squeeze(-1)
+            cot_log_prob = jnp.sum(cot_tokens_log_prob, axis=-1)
+            rl_loss = jnp.mean(-rewards * cot_log_prob)
+
+            loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
+            return loss, (logits, rl_loss, cot_entropy)
+
+        def rl_loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
             logits, (cot_tokens, cot_logits) = state.apply_fn(
                 variables={"params": params},
                 inputs=inputs,
@@ -390,12 +475,16 @@ class Trainer:
             loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
             return loss, (logits, rl_loss, cot_entropy)
 
-        if self.use_poppy:
+        if self.rl_use_poppy:
             grads, (logits, rl_loss, cot_entropy) = jax.grad(poppy_loss_fn, has_aux=True)(
                 state.params
             )
+        elif self.rl_use_meta_reward:
+            grads, (logits, rl_loss, cot_entropy) = jax.grad(meta_reward_loss_fn, has_aux=True)(
+                state.params
+            )
         else:
-            grads, (logits, rl_loss, cot_entropy) = jax.grad(loss_fn, has_aux=True)(state.params)
+            grads, (logits, rl_loss, cot_entropy) = jax.grad(rl_loss_fn, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
         grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
@@ -741,7 +830,8 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     cot_loss_weight_mixing: float = 1.0,
     rl_loss_weight_mixing: float = 1.0,
     rl_baseline_batch_size: Optional[int] = None,
-    use_poppy: bool = False,
+    rl_use_meta_reward: bool = False,
+    rl_use_poppy: bool = False,
     poppy_size: Optional[int] = None,
     poppy_train_encoder_on_best_cot: bool = False,
     poppy_train_cot_module_using_poppy: bool = False,
@@ -899,7 +989,8 @@ def run_augmented_transformer_exp(  # noqa: CCR001
         cot_loss_weight_mixing=cot_loss_weight_mixing,
         rl_loss_weight_mixing=rl_loss_weight_mixing,
         rl_baseline_batch_size=rl_baseline_batch_size,
-        use_poppy=use_poppy,
+        rl_use_meta_reward=rl_use_meta_reward,
+        rl_use_poppy=rl_use_poppy,
         poppy_size=poppy_size,
         poppy_train_encoder_on_best_cot=poppy_train_encoder_on_best_cot,
         poppy_train_cot_module_using_poppy=poppy_train_cot_module_using_poppy,
@@ -932,7 +1023,7 @@ def run_cot_transformer_exp(  # noqa: CCR001
     rl_loss_weight_mixing: float = 1.0,
     cot_entropy_weight: float = 0.0,
     rl_baseline_batch_size: Optional[int] = None,
-    use_poppy: bool = False,
+    rl_use_poppy: bool = False,
     poppy_size: Optional[int] = None,
     poppy_train_encoder_on_best_cot: bool = False,
     poppy_train_cot_module_using_poppy: bool = False,
@@ -1040,7 +1131,7 @@ def run_cot_transformer_exp(  # noqa: CCR001
         rl_loss_weight_mixing=rl_loss_weight_mixing,
         rl_baseline_batch_size=rl_baseline_batch_size,
         cot_entropy_weight=cot_entropy_weight,
-        use_poppy=use_poppy,
+        rl_use_poppy=rl_use_poppy,
         poppy_size=poppy_size,
         poppy_train_encoder_on_best_cot=poppy_train_encoder_on_best_cot,
         poppy_train_cot_module_using_poppy=poppy_train_cot_module_using_poppy,
@@ -1071,48 +1162,20 @@ if __name__ == "__main__":
     #     batch_size=64,
     #     run_name="Cycle 1-40 SUPERVISED T1",
     # )
-    run_cot_transformer_exp(
+    run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
         train_num_hops=1,
         eval_num_hops=1,
         seq_length=40,
-        cross_transformer_num_layers=1,
-        cot_seq_length=1,
-        cot_vocab_size=40,
-        log_every=200,
-        num_iterations=200_000,
-        batch_size=64,
-        rl_use_meta_reward=True,
-        run_name="Cycle 1-40 RL CoTTransformer T1 meta_reward",
-    )
-    run_cot_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=2,
-        eval_num_hops=2,
-        seq_length=40,
-        cross_transformer_num_layers=1,
+        cot_module=True,
         cot_seq_length=2,
         cot_vocab_size=40,
         log_every=200,
         num_iterations=200_000,
         batch_size=64,
         rl_use_meta_reward=True,
-        run_name="Cycle 2-40 RL CoTTransformer T1 meta_reward",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.SUPERVISED,
-        train_num_hops=2,
-        eval_num_hops=2,
-        seq_length=40,
-        cot_module=False,
-        encoder_cross_transformer_num_layers=1,
-        log_every=200,
-        num_iterations=200_000,
-        batch_size=64,
-        run_name="Cycle 2-40 SUPERVISED T1",
+        run_name="Cycle 1-40 RL T1 meta_reward",
     )
 
     # run_cot_transformer_exp(
@@ -1170,7 +1233,7 @@ if __name__ == "__main__":
     #     cot_vocab_size=40,
     #     log_every=50,
     #     num_iterations=50_000,
-    #     use_poppy=True,
+    #     rl_use_poppy=True,
     #     poppy_size=10,
     #     poppy_train_encoder_on_best_cot=True,
     #     poppy_train_cot_module_using_poppy=False,
@@ -1188,7 +1251,7 @@ if __name__ == "__main__":
     #     cot_vocab_size=40,
     #     log_every=50,
     #     num_iterations=50_000,
-    #     use_poppy=True,
+    #     rl_use_poppy=True,
     #     poppy_size=2,
     #     poppy_train_encoder_on_best_cot=False,
     #     poppy_train_cot_module_using_poppy=True,
@@ -1206,7 +1269,7 @@ if __name__ == "__main__":
     #     cot_vocab_size=40,
     #     log_every=50,
     #     num_iterations=50_000,
-    #     use_poppy=True,
+    #     rl_use_poppy=True,
     #     poppy_size=2,
     #     poppy_train_encoder_on_best_cot=False,
     #     poppy_train_cot_module_using_poppy=True,
@@ -1224,7 +1287,7 @@ if __name__ == "__main__":
     #     cot_vocab_size=40,
     #     log_every=50,
     #     num_iterations=50_000,
-    #     use_poppy=True,
+    #     rl_use_poppy=True,
     #     poppy_size=2,
     #     poppy_train_encoder_on_best_cot=True,
     #     poppy_train_cot_module_using_poppy=True,
@@ -1242,7 +1305,7 @@ if __name__ == "__main__":
     #     cot_vocab_size=40,
     #     log_every=50,
     #     num_iterations=50_000,
-    #     use_poppy=True,
+    #     rl_use_poppy=True,
     #     poppy_size=2,
     #     poppy_train_encoder_on_best_cot=True,
     #     poppy_train_cot_module_using_poppy=True,
@@ -1260,7 +1323,7 @@ if __name__ == "__main__":
     #     cot_vocab_size=40,
     #     log_every=50,
     #     num_iterations=50_000,
-    #     use_poppy=True,
+    #     rl_use_poppy=True,
     #     poppy_size=10,
     #     poppy_train_encoder_on_best_cot=False,
     #     poppy_train_cot_module_using_poppy=False,
@@ -1278,7 +1341,7 @@ if __name__ == "__main__":
     #     cot_vocab_size=40,
     #     log_every=50,
     #     num_iterations=50_000,
-    #     use_poppy=False,
+    #     rl_use_poppy=False,
     #     run_name="Cycle 2-40 RL T1",
     # )
 
