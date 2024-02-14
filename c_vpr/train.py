@@ -1189,11 +1189,11 @@ if __name__ == "__main__":
         num_iterations=1000,
         batch_size=64,
         hide_inputs_from_encoder=True,
-        rl_use_meta_reward=True,
-        rl_meta_reward_alpha=1e-3,
-        rl_meta_reward_use_baseline=True,
+        # rl_use_meta_reward=True,
+        # rl_meta_reward_alpha=1e-3,
+        # rl_meta_reward_use_baseline=True,
         cot_entropy_weight=3e-1,
-        run_name="Cycle 1-5 RL_meta_1e-3 T1 baseline inputs_hidden entropy_weight_3e-1",
+        run_name="Cycle 1-5 RL T1 baseline inputs_hidden entropy_weight_3e-1",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -1208,11 +1208,11 @@ if __name__ == "__main__":
         num_iterations=1000,
         batch_size=64,
         hide_inputs_from_encoder=True,
-        rl_use_meta_reward=True,
-        rl_meta_reward_alpha=1e-3,
-        rl_meta_reward_use_baseline=True,
+        # rl_use_meta_reward=True,
+        # rl_meta_reward_alpha=1e-3,
+        # rl_meta_reward_use_baseline=True,
         cot_entropy_weight=5e-1,
-        run_name="Cycle 1-5 RL_meta_1e-3 T1 baseline inputs_hidden entropy_weight_5e-1",
+        run_name="Cycle 1-5 RL T1 baseline inputs_hidden entropy_weight_5e-1",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -1227,11 +1227,11 @@ if __name__ == "__main__":
         num_iterations=1000,
         batch_size=64,
         hide_inputs_from_encoder=True,
-        rl_use_meta_reward=True,
-        rl_meta_reward_alpha=1e-3,
-        rl_meta_reward_use_baseline=True,
+        # rl_use_meta_reward=True,
+        # rl_meta_reward_alpha=1e-3,
+        # rl_meta_reward_use_baseline=True,
         cot_entropy_weight=8e-1,
-        run_name="Cycle 1-5 RL_meta_1e-3 T1 baseline inputs_hidden entropy_weight_8e-1",
+        run_name="Cycle 1-5 RL T1 baseline inputs_hidden entropy_weight_8e-1",
     )
 
     # for num_hops in [1, 2, [1, 2]]:
