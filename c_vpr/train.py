@@ -1155,6 +1155,7 @@ if __name__ == "__main__":
         eval_num_hops=1,
         seq_length=5,
         cot_module=True,
+        cot_module_cross_transformer_num_layers=2,
         cot_seq_length=2,
         cot_vocab_size=5,
         log_every=1,
@@ -1163,7 +1164,7 @@ if __name__ == "__main__":
         hide_inputs_from_encoder=True,
         dummy_encoder=True,
         cot_entropy_weight=1e-1,
-        run_name="Cycle 1-5 RL cot_entropy_weight_1e-1 T1 inputs_hidden dummy_encoder",
+        run_name="Cycle 1-5 RL cot_entropy_weight_1e-1 T2 inputs_hidden dummy_encoder",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -1172,6 +1173,7 @@ if __name__ == "__main__":
         eval_num_hops=1,
         seq_length=5,
         cot_module=True,
+        cot_module_cross_transformer_num_layers=2,
         cot_seq_length=2,
         cot_vocab_size=5,
         log_every=1,
@@ -1180,7 +1182,7 @@ if __name__ == "__main__":
         hide_inputs_from_encoder=True,
         dummy_encoder=True,
         cot_entropy_weight=3e-1,
-        run_name="Cycle 1-5 RL cot_entropy_weight_3e-1 T1 inputs_hidden dummy_encoder",
+        run_name="Cycle 1-5 RL cot_entropy_weight_3e-1 T2 inputs_hidden dummy_encoder",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -1189,6 +1191,7 @@ if __name__ == "__main__":
         eval_num_hops=1,
         seq_length=5,
         cot_module=True,
+        cot_module_cross_transformer_num_layers=2,
         cot_seq_length=2,
         cot_vocab_size=5,
         log_every=1,
@@ -1197,7 +1200,7 @@ if __name__ == "__main__":
         hide_inputs_from_encoder=True,
         dummy_encoder=True,
         cot_entropy_weight=6e-1,
-        run_name="Cycle 1-5 RL cot_entropy_weight_6e-1 T1 inputs_hidden dummy_encoder",
+        run_name="Cycle 1-5 RL cot_entropy_weight_6e-1 T2 inputs_hidden dummy_encoder",
     )
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
