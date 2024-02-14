@@ -869,7 +869,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     assert classification_mode in ["cls_token", "mean_embedding"]
     if cot_module:
         if mode in [MODE.COT, MODE.RL]:
-            if cot_seq_length < max_num_hops + 1:
+            if mode == MODE.COT and cot_seq_length < max_num_hops + 1:
                 raise ValueError(
                     f"cot_seq_length ({cot_seq_length}) is smaller than max_num_hops + 1"
                     f"({max_num_hops} + 1), which means that the chain of thought sequence is "
@@ -1194,48 +1194,48 @@ if __name__ == "__main__":
         mode=MODE.RL,
         train_num_hops=1,
         eval_num_hops=1,
-        seq_length=20,
+        seq_length=10,
         cot_module=True,
-        cot_seq_length=2,
-        cot_vocab_size=20,
+        cot_seq_length=1,
+        cot_vocab_size=10,
         log_every=10,
         num_iterations=500,
         batch_size=8192,
         learning_rate=1e-4,
         dummy_encoder=True,
-        run_name="Cycle 1-20 RL bs_8192 lr_1e-4 T1 dummy_encoder",
+        run_name="Cycle 1-10 RL bs_8192 lr_1e-4 T1 dummy_encoder",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
         train_num_hops=1,
         eval_num_hops=1,
-        seq_length=20,
+        seq_length=10,
         cot_module=True,
-        cot_seq_length=2,
-        cot_vocab_size=20,
+        cot_seq_length=1,
+        cot_vocab_size=10,
         log_every=10,
         num_iterations=500,
         batch_size=16384,
         learning_rate=1e-4,
         dummy_encoder=True,
-        run_name="Cycle 1-20 RL bs_16384 lr_1e-4 T1 dummy_encoder",
+        run_name="Cycle 1-10 RL bs_16384 lr_1e-4 T1 dummy_encoder",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
         train_num_hops=1,
         eval_num_hops=1,
-        seq_length=20,
+        seq_length=10,
         cot_module=True,
-        cot_seq_length=2,
-        cot_vocab_size=20,
+        cot_seq_length=1,
+        cot_vocab_size=10,
         log_every=10,
         num_iterations=500,
         batch_size=16384,
         learning_rate=3e-5,
         dummy_encoder=True,
-        run_name="Cycle 1-20 RL bs_16384 lr_3e-5 T1 dummy_encoder",
+        run_name="Cycle 1-10 RL bs_16384 lr_3e-5 T1 dummy_encoder",
     )
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
