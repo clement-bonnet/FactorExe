@@ -409,7 +409,6 @@ class AugmentedTransformer(nn.Module):
 
     cot_module_config: Optional[CoTModuleConfig]
     encoder_config: EncoderConfig
-    hide_inputs_from_encoder: bool = False
     dummy_encoder: bool = False
 
     def setup(self) -> None:
@@ -480,8 +479,6 @@ class AugmentedTransformer(nn.Module):
         inputs_pad_mask: Optional[chex.Array] = None,
         cot_pad_mask: Optional[chex.Array] = None,
     ) -> chex.Array:
-        if self.hide_inputs_from_encoder:
-            inputs = jnp.zeros_like(inputs)
         return self.encoder(
             inputs=inputs,
             cot_tokens=cot_tokens,
@@ -529,8 +526,6 @@ class AugmentedTransformer(nn.Module):
             cot_tokens, cot_logits = None, None
 
         # Encoder block.
-        if self.hide_inputs_from_encoder:
-            inputs = jnp.zeros_like(inputs)
         logits = self.encoder(
             inputs=inputs,
             cot_tokens=cot_tokens,

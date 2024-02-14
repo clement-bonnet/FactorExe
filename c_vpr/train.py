@@ -267,7 +267,9 @@ class Trainer:
         metrics.update(grad_norm=grad_norm, cot_loss=cot_loss, cot_entropy=cot_entropy)
         return state, metrics
 
-    def train_step_rl(self, state: TrainState, key: chex.PRNGKey) -> tuple[TrainState, dict]:
+    def train_step_rl(  # noqa: CCR001
+        self, state: TrainState, key: chex.PRNGKey
+    ) -> tuple[TrainState, dict]:
         num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
 
         num_hops = jax.random.choice(
@@ -436,7 +438,31 @@ class Trainer:
             else:
                 rewards = jax.lax.stop_gradient(-supervised_losses)
 
-            # TODO: check that this is correct
+                if self.rl_baseline_batch_size is not None:
+                    repeated_inputs = inputs[None].repeat(self.rl_baseline_batch_size, axis=0)
+                    repeated_num_hops = num_hops[None].repeat(self.rl_baseline_batch_size, axis=0)
+                    repeated_labels = labels[None].repeat(self.rl_baseline_batch_size, axis=0)
+                    cot_keys = jax.random.split(
+                        cot_key_1, self.rl_baseline_batch_size * labels.shape[0]
+                    ).reshape(*repeated_labels.shape[:2], 2)
+                    dropout_keys = jax.random.split(
+                        dropout_key_1, self.rl_baseline_batch_size * labels.shape[0]
+                    ).reshape(*repeated_labels.shape[:2], 2)
+
+                    supervised_losses, _ = jax.vmap(
+                        jax.vmap(partial_loss_fn, in_axes=(None, 0, 0, 0, 0, 0)),
+                        in_axes=(None, 0, 0, 0, 0, 0),
+                    )(
+                        params,
+                        repeated_inputs,
+                        repeated_num_hops,
+                        repeated_labels,
+                        cot_keys,
+                        dropout_keys,
+                    )
+                    baseline = supervised_losses.mean(axis=0)
+                    rewards -= jax.lax.stop_gradient(baseline)
+
             cot_tokens_all_log_prob = jax.nn.log_softmax(cot_tokens_logits, axis=-1)
             cot_tokens_log_prob = jnp.take_along_axis(
                 cot_tokens_all_log_prob, cot_tokens[..., None], axis=-1
@@ -815,7 +841,6 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     poppy_train_encoder_on_best_cot: bool = False,
     poppy_train_cot_module_using_poppy: bool = False,
     decode_from_sampled_cot_tokens: bool = True,
-    hide_inputs_from_encoder: bool = False,
     dummy_encoder: bool = False,
     classification_mode: str = "cls_token",
     learning_rate: float = 3e-4,
@@ -926,7 +951,6 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     model = AugmentedTransformer(
         cot_module_config,
         encoder_config,
-        hide_inputs_from_encoder=hide_inputs_from_encoder,
         dummy_encoder=dummy_encoder,
     )
 
@@ -1146,67 +1170,161 @@ if __name__ == "__main__":
     #     log_every=1,
     #     num_iterations=300,
     #     batch_size=64,
-    #     hide_inputs_from_encoder=True,
     #     dummy_encoder=True,
     #     run_name="Cycle 1-5 COT T1 inputs_hidden dummy_encoder",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=4,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=4,
+    #     log_every=1,
+    #     num_iterations=200,
+    #     batch_size=64,
+    #     dummy_encoder=True,
+    #     rl_baseline_batch_size=1000,
+    #     run_name="Cycle 1-4 RL baseline_1000 T1 dummy_encoder",
     # )
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
         train_num_hops=1,
         eval_num_hops=1,
-        seq_length=5,
+        seq_length=20,
         cot_module=True,
-        cot_module_input_encoder_num_repeat=1,
-        cot_module_input_encoder_num_layers=1,
         cot_seq_length=2,
-        cot_vocab_size=5,
-        log_every=1,
-        num_iterations=1500,
-        batch_size=64,
-        hide_inputs_from_encoder=True,
+        cot_vocab_size=20,
+        log_every=10,
+        num_iterations=500,
+        batch_size=8192,
+        learning_rate=1e-4,
         dummy_encoder=True,
-        cot_entropy_weight=1e-1,
-        run_name="Cycle 1-5 RL cot_entropy_weight_1e-1 T1+T1 inputs_hidden dummy_encoder",
+        run_name="Cycle 1-20 RL bs_8192 lr_1e-4 T1 dummy_encoder",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
         train_num_hops=1,
         eval_num_hops=1,
-        seq_length=5,
+        seq_length=20,
         cot_module=True,
-        cot_module_input_encoder_num_repeat=1,
-        cot_module_input_encoder_num_layers=1,
         cot_seq_length=2,
-        cot_vocab_size=5,
-        log_every=1,
-        num_iterations=1500,
-        batch_size=64,
-        hide_inputs_from_encoder=True,
+        cot_vocab_size=20,
+        log_every=10,
+        num_iterations=500,
+        batch_size=16384,
+        learning_rate=1e-4,
         dummy_encoder=True,
-        cot_entropy_weight=3e-1,
-        run_name="Cycle 1-5 RL cot_entropy_weight_3e-1 T1+T1 inputs_hidden dummy_encoder",
+        run_name="Cycle 1-20 RL bs_16384 lr_1e-4 T1 dummy_encoder",
     )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=1,
-        eval_num_hops=1,
-        seq_length=5,
-        cot_module=True,
-        cot_module_input_encoder_num_repeat=1,
-        cot_module_input_encoder_num_layers=1,
-        cot_seq_length=2,
-        cot_vocab_size=5,
-        log_every=1,
-        num_iterations=1500,
-        batch_size=64,
-        hide_inputs_from_encoder=True,
-        dummy_encoder=True,
-        cot_entropy_weight=6e-1,
-        run_name="Cycle 1-5 RL cot_entropy_weight_6e-1 T1+T1 inputs_hidden dummy_encoder",
-    )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=6,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=6,
+    #     log_every=1,
+    #     num_iterations=200,
+    #     batch_size=4096,
+    #     learning_rate=1e-4,
+    #     dummy_encoder=True,
+    #     run_name="Cycle 1-6 RL bs_4096 lr_1e-4 T1 dummy_encoder",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=6,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=6,
+    #     log_every=1,
+    #     num_iterations=200,
+    #     batch_size=8192,
+    #     learning_rate=1e-4,
+    #     dummy_encoder=True,
+    #     run_name="Cycle 1-6 RL bs_8192 lr_1e-4 T1 dummy_encoder",
+    # )
+
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=4,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=4,
+    #     log_every=1,
+    #     num_iterations=200,
+    #     batch_size=256,
+    #     dummy_encoder=True,
+    #     run_name="Cycle 1-4 RL bs_256 T1 dummy_encoder",
+    # )
+
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=5,
+    #     cot_module=True,
+    #     cot_module_input_encoder_num_repeat=1,
+    #     cot_module_input_encoder_num_layers=1,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=5,
+    #     log_every=1,
+    #     num_iterations=1500,
+    #     batch_size=64,
+    #     dummy_encoder=True,
+    #     cot_entropy_weight=1e-1,
+    #     run_name="Cycle 1-5 RL cot_entropy_weight_1e-1 T1+T1 inputs_hidden dummy_encoder",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=5,
+    #     cot_module=True,
+    #     cot_module_input_encoder_num_repeat=1,
+    #     cot_module_input_encoder_num_layers=1,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=5,
+    #     log_every=1,
+    #     num_iterations=1500,
+    #     batch_size=64,
+    #     dummy_encoder=True,
+    #     cot_entropy_weight=3e-1,
+    #     run_name="Cycle 1-5 RL cot_entropy_weight_3e-1 T1+T1 inputs_hidden dummy_encoder",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=5,
+    #     cot_module=True,
+    #     cot_module_input_encoder_num_repeat=1,
+    #     cot_module_input_encoder_num_layers=1,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=5,
+    #     log_every=1,
+    #     num_iterations=1500,
+    #     batch_size=64,
+    #     dummy_encoder=True,
+    #     cot_entropy_weight=6e-1,
+    #     run_name="Cycle 1-5 RL cot_entropy_weight_6e-1 T1+T1 inputs_hidden dummy_encoder",
+    # )
+
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.RL,
@@ -1219,7 +1337,6 @@ if __name__ == "__main__":
     #     log_every=1,
     #     num_iterations=300,
     #     batch_size=64,
-    #     hide_inputs_from_encoder=True,
     #     dummy_encoder=True,
     #     rl_use_meta_reward=True,
     #     rl_meta_reward_alpha=1e-3,
@@ -1239,7 +1356,6 @@ if __name__ == "__main__":
     #     log_every=1,
     #     num_iterations=1000,
     #     batch_size=64,
-    #     hide_inputs_from_encoder=True,
     #     cot_entropy_weight=1e-2,
     #     run_name="Cycle 1-5 RL T1 inputs_hidden entropy_weight_1e-2",
     # )
@@ -1255,7 +1371,6 @@ if __name__ == "__main__":
     #     log_every=1,
     #     num_iterations=1000,
     #     batch_size=64,
-    #     hide_inputs_from_encoder=True,
     #     rl_use_meta_reward=True,
     #     rl_meta_reward_alpha=1e-3,
     #     rl_meta_reward_use_baseline=True,
@@ -1273,7 +1388,6 @@ if __name__ == "__main__":
     #     log_every=1,
     #     num_iterations=1000,
     #     batch_size=64,
-    #     hide_inputs_from_encoder=True,
     #     # rl_use_meta_reward=True,
     #     # rl_meta_reward_alpha=1e-3,
     #     # rl_meta_reward_use_baseline=True,
@@ -1292,7 +1406,6 @@ if __name__ == "__main__":
     #     log_every=1,
     #     num_iterations=1000,
     #     batch_size=64,
-    #     hide_inputs_from_encoder=True,
     #     # rl_use_meta_reward=True,
     #     # rl_meta_reward_alpha=1e-3,
     #     # rl_meta_reward_use_baseline=True,
@@ -1311,7 +1424,6 @@ if __name__ == "__main__":
     #     log_every=1,
     #     num_iterations=1000,
     #     batch_size=64,
-    #     hide_inputs_from_encoder=True,
     #     # rl_use_meta_reward=True,
     #     # rl_meta_reward_alpha=1e-3,
     #     # rl_meta_reward_use_baseline=True,
@@ -1330,7 +1442,6 @@ if __name__ == "__main__":
     #         log_every=10,
     #         num_iterations=10_000,
     #         batch_size=64,
-    #         hide_inputs_from_encoder=True,
     #         run_name=f"Cycle {num_hops}-40 SUPERVISED T1 inputs_hidden",
     #     )
     #     run_augmented_transformer_exp(
@@ -1345,7 +1456,6 @@ if __name__ == "__main__":
     #         log_every=10,
     #         num_iterations=10_000,
     #         batch_size=64,
-    #         hide_inputs_from_encoder=True,
     #         run_name=f"Cycle {num_hops}-40 COT T1 inputs_hidden",
     #     )
     #     run_augmented_transformer_exp(
@@ -1360,7 +1470,6 @@ if __name__ == "__main__":
     #         log_every=10,
     #         num_iterations=10_000,
     #         batch_size=64,
-    #         hide_inputs_from_encoder=True,
     #         run_name=f"Cycle {num_hops}-40 RL T1 inputs_hidden",
     #     )
     #     run_augmented_transformer_exp(
@@ -1375,7 +1484,6 @@ if __name__ == "__main__":
     #         log_every=10,
     #         num_iterations=10_000,
     #         batch_size=64,
-    #         hide_inputs_from_encoder=True,
     #         rl_use_meta_reward=True,
     #         rl_meta_reward_alpha=1e-3,
     #         rl_meta_reward_use_baseline=True,
@@ -1393,7 +1501,6 @@ if __name__ == "__main__":
     #         log_every=10,
     #         num_iterations=10_000,
     #         batch_size=64,
-    #         hide_inputs_from_encoder=True,
     #         rl_use_meta_reward=True,
     #         rl_meta_reward_alpha=1e-3,
     #         run_name=f"Cycle {num_hops}-40 RL_meta_1e-3 T1 inputs_hidden",
@@ -1410,7 +1517,6 @@ if __name__ == "__main__":
     #         log_every=10,
     #         num_iterations=10_000,
     #         batch_size=64,
-    #         hide_inputs_from_encoder=True,
     #         rl_use_meta_reward=True,
     #         rl_meta_reward_alpha=1e-2,
     #         rl_meta_reward_use_baseline=True,
@@ -1428,7 +1534,6 @@ if __name__ == "__main__":
     #         log_every=10,
     #         num_iterations=10_000,
     #         batch_size=64,
-    #         hide_inputs_from_encoder=True,
     #         rl_use_meta_reward=True,
     #         rl_meta_reward_alpha=1e-2,
     #         run_name=f"Cycle {num_hops}-40 RL_meta_1e-2 T1 inputs_hidden",
