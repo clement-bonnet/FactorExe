@@ -253,7 +253,11 @@ class Trainer:
             )
             supervised_loss = cross_entropy_loss(logits, labels)
 
-            loss = supervised_loss + self.cot_loss_weight_mixing * cot_loss
+            loss = (
+                supervised_loss
+                + self.cot_loss_weight_mixing * cot_loss
+                - self.cot_entropy_weight * cot_entropy
+            )
             return loss, (logits, cot_loss, cot_entropy)
 
         grads, (logits, cot_loss, cot_entropy) = jax.grad(loss_fn, has_aux=True)(state.params)
@@ -337,7 +341,11 @@ class Trainer:
                 ).squeeze(-1)
                 rl_loss = jnp.mean(-rewards[..., None] * cot_log_prob)
 
-            loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
+            loss = (
+                supervised_loss
+                + self.rl_loss_weight_mixing * rl_loss
+                - self.cot_entropy_weight * cot_entropy
+            )
             return loss, (logits, rl_loss, cot_entropy)
 
         def rl_loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
@@ -435,7 +443,11 @@ class Trainer:
             cot_log_prob = jnp.sum(cot_tokens_log_prob, axis=-1)
             rl_loss = jnp.mean(-rewards * cot_log_prob)
 
-            loss = supervised_loss + self.rl_loss_weight_mixing * rl_loss
+            loss = (
+                supervised_loss
+                + self.rl_loss_weight_mixing * rl_loss
+                - self.cot_entropy_weight * cot_entropy
+            )
             return loss, (logits, rl_loss, cot_entropy)
 
         if self.rl_use_poppy:
@@ -787,6 +799,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     mlp_dim_factor: float = 4,
     all_dropouts_rate: float = 0.0,
     cot_loss_weight_mixing: float = 1.0,
+    cot_entropy_weight: float = 0.0,
     rl_loss_weight_mixing: float = 1.0,
     rl_baseline_batch_size: Optional[int] = None,
     rl_use_meta_reward: bool = False,
@@ -950,6 +963,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
         eval_size,
         cot_start_token=cot_module_config.cot_vocab_size if cot_module_config else None,
         cot_loss_weight_mixing=cot_loss_weight_mixing,
+        cot_entropy_weight=cot_entropy_weight,
         rl_loss_weight_mixing=rl_loss_weight_mixing,
         rl_baseline_batch_size=rl_baseline_batch_size,
         rl_use_meta_reward=rl_use_meta_reward,
@@ -1113,120 +1127,189 @@ def run_cot_transformer_exp(  # noqa: CCR001
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
-    for num_hops in [1, 2, [1, 2]]:
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.SUPERVISED,
-            train_num_hops=num_hops,
-            eval_num_hops=num_hops,
-            seq_length=40,
-            cot_module=False,
-            log_every=10,
-            num_iterations=10_000,
-            batch_size=64,
-            hide_inputs_from_encoder=True,
-            run_name=f"Cycle {num_hops}-40 SUPERVISED T1 inputs_hidden",
-        )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.COT,
-            train_num_hops=num_hops,
-            eval_num_hops=num_hops,
-            seq_length=40,
-            cot_module=True,
-            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
-            cot_vocab_size=40,
-            log_every=10,
-            num_iterations=10_000,
-            batch_size=64,
-            hide_inputs_from_encoder=True,
-            run_name=f"Cycle {num_hops}-40 COT T1 inputs_hidden",
-        )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.RL,
-            train_num_hops=num_hops,
-            eval_num_hops=num_hops,
-            seq_length=40,
-            cot_module=True,
-            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
-            cot_vocab_size=40,
-            log_every=10,
-            num_iterations=10_000,
-            batch_size=64,
-            hide_inputs_from_encoder=True,
-            run_name=f"Cycle {num_hops}-40 RL T1 inputs_hidden",
-        )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.RL,
-            train_num_hops=num_hops,
-            eval_num_hops=num_hops,
-            seq_length=40,
-            cot_module=True,
-            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
-            cot_vocab_size=40,
-            log_every=10,
-            num_iterations=10_000,
-            batch_size=64,
-            hide_inputs_from_encoder=True,
-            rl_use_meta_reward=True,
-            rl_meta_reward_alpha=1e-3,
-            rl_meta_reward_use_baseline=True,
-            run_name=f"Cycle {num_hops}-40 RL_meta_1e-3 T1 baseline inputs_hidden",
-        )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.RL,
-            train_num_hops=num_hops,
-            eval_num_hops=num_hops,
-            seq_length=40,
-            cot_module=True,
-            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
-            cot_vocab_size=40,
-            log_every=10,
-            num_iterations=10_000,
-            batch_size=64,
-            hide_inputs_from_encoder=True,
-            rl_use_meta_reward=True,
-            rl_meta_reward_alpha=1e-3,
-            run_name=f"Cycle {num_hops}-40 RL_meta_1e-3 T1 inputs_hidden",
-        )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.RL,
-            train_num_hops=num_hops,
-            eval_num_hops=num_hops,
-            seq_length=40,
-            cot_module=True,
-            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
-            cot_vocab_size=40,
-            log_every=10,
-            num_iterations=10_000,
-            batch_size=64,
-            hide_inputs_from_encoder=True,
-            rl_use_meta_reward=True,
-            rl_meta_reward_alpha=1e-2,
-            rl_meta_reward_use_baseline=True,
-            run_name=f"Cycle {num_hops}-40 RL_meta_1e-2 T1 baseline inputs_hidden",
-        )
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.RL,
-            train_num_hops=num_hops,
-            eval_num_hops=num_hops,
-            seq_length=40,
-            cot_module=True,
-            cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
-            cot_vocab_size=40,
-            log_every=10,
-            num_iterations=10_000,
-            batch_size=64,
-            hide_inputs_from_encoder=True,
-            rl_use_meta_reward=True,
-            rl_meta_reward_alpha=1e-2,
-            run_name=f"Cycle {num_hops}-40 RL_meta_1e-2 T1 inputs_hidden",
-        )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=1,
+        eval_num_hops=1,
+        seq_length=5,
+        cot_module=True,
+        cot_seq_length=2,
+        cot_vocab_size=5,
+        log_every=1,
+        num_iterations=1000,
+        batch_size=64,
+        hide_inputs_from_encoder=True,
+        run_name="Cycle 1-5 RL T1 inputs_hidden",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=1,
+        eval_num_hops=1,
+        seq_length=5,
+        cot_module=True,
+        cot_seq_length=2,
+        cot_vocab_size=5,
+        log_every=1,
+        num_iterations=1000,
+        batch_size=64,
+        hide_inputs_from_encoder=True,
+        cot_entropy_weight=1e-2,
+        run_name="Cycle 1-5 RL T1 inputs_hidden entropy_weight_1e-2",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=1,
+        eval_num_hops=1,
+        seq_length=5,
+        cot_module=True,
+        cot_seq_length=2,
+        cot_vocab_size=5,
+        log_every=1,
+        num_iterations=1000,
+        batch_size=64,
+        hide_inputs_from_encoder=True,
+        rl_use_meta_reward=True,
+        rl_meta_reward_alpha=1e-3,
+        rl_meta_reward_use_baseline=True,
+        run_name="Cycle 1-5 RL_meta_1e-3 T1 baseline inputs_hidden",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=1,
+        eval_num_hops=1,
+        seq_length=5,
+        cot_module=True,
+        cot_seq_length=2,
+        cot_vocab_size=5,
+        log_every=1,
+        num_iterations=1000,
+        batch_size=64,
+        hide_inputs_from_encoder=True,
+        rl_use_meta_reward=True,
+        rl_meta_reward_alpha=1e-3,
+        rl_meta_reward_use_baseline=True,
+        cot_entropy_weight=1e-2,
+        run_name="Cycle 1-5 RL_meta_1e-3 T1 baseline inputs_hidden entropy_weight_1e-2",
+    )
+
+    # for num_hops in [1, 2, [1, 2]]:
+    #     run_augmented_transformer_exp(
+    #         env_name="Cycle",
+    #         mode=MODE.SUPERVISED,
+    #         train_num_hops=num_hops,
+    #         eval_num_hops=num_hops,
+    #         seq_length=40,
+    #         cot_module=False,
+    #         log_every=10,
+    #         num_iterations=10_000,
+    #         batch_size=64,
+    #         hide_inputs_from_encoder=True,
+    #         run_name=f"Cycle {num_hops}-40 SUPERVISED T1 inputs_hidden",
+    #     )
+    #     run_augmented_transformer_exp(
+    #         env_name="Cycle",
+    #         mode=MODE.COT,
+    #         train_num_hops=num_hops,
+    #         eval_num_hops=num_hops,
+    #         seq_length=40,
+    #         cot_module=True,
+    #         cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+    #         cot_vocab_size=40,
+    #         log_every=10,
+    #         num_iterations=10_000,
+    #         batch_size=64,
+    #         hide_inputs_from_encoder=True,
+    #         run_name=f"Cycle {num_hops}-40 COT T1 inputs_hidden",
+    #     )
+    #     run_augmented_transformer_exp(
+    #         env_name="Cycle",
+    #         mode=MODE.RL,
+    #         train_num_hops=num_hops,
+    #         eval_num_hops=num_hops,
+    #         seq_length=40,
+    #         cot_module=True,
+    #         cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+    #         cot_vocab_size=40,
+    #         log_every=10,
+    #         num_iterations=10_000,
+    #         batch_size=64,
+    #         hide_inputs_from_encoder=True,
+    #         run_name=f"Cycle {num_hops}-40 RL T1 inputs_hidden",
+    #     )
+    #     run_augmented_transformer_exp(
+    #         env_name="Cycle",
+    #         mode=MODE.RL,
+    #         train_num_hops=num_hops,
+    #         eval_num_hops=num_hops,
+    #         seq_length=40,
+    #         cot_module=True,
+    #         cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+    #         cot_vocab_size=40,
+    #         log_every=10,
+    #         num_iterations=10_000,
+    #         batch_size=64,
+    #         hide_inputs_from_encoder=True,
+    #         rl_use_meta_reward=True,
+    #         rl_meta_reward_alpha=1e-3,
+    #         rl_meta_reward_use_baseline=True,
+    #         run_name=f"Cycle {num_hops}-40 RL_meta_1e-3 T1 baseline inputs_hidden",
+    #     )
+    #     run_augmented_transformer_exp(
+    #         env_name="Cycle",
+    #         mode=MODE.RL,
+    #         train_num_hops=num_hops,
+    #         eval_num_hops=num_hops,
+    #         seq_length=40,
+    #         cot_module=True,
+    #         cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+    #         cot_vocab_size=40,
+    #         log_every=10,
+    #         num_iterations=10_000,
+    #         batch_size=64,
+    #         hide_inputs_from_encoder=True,
+    #         rl_use_meta_reward=True,
+    #         rl_meta_reward_alpha=1e-3,
+    #         run_name=f"Cycle {num_hops}-40 RL_meta_1e-3 T1 inputs_hidden",
+    #     )
+    #     run_augmented_transformer_exp(
+    #         env_name="Cycle",
+    #         mode=MODE.RL,
+    #         train_num_hops=num_hops,
+    #         eval_num_hops=num_hops,
+    #         seq_length=40,
+    #         cot_module=True,
+    #         cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+    #         cot_vocab_size=40,
+    #         log_every=10,
+    #         num_iterations=10_000,
+    #         batch_size=64,
+    #         hide_inputs_from_encoder=True,
+    #         rl_use_meta_reward=True,
+    #         rl_meta_reward_alpha=1e-2,
+    #         rl_meta_reward_use_baseline=True,
+    #         run_name=f"Cycle {num_hops}-40 RL_meta_1e-2 T1 baseline inputs_hidden",
+    #     )
+    #     run_augmented_transformer_exp(
+    #         env_name="Cycle",
+    #         mode=MODE.RL,
+    #         train_num_hops=num_hops,
+    #         eval_num_hops=num_hops,
+    #         seq_length=40,
+    #         cot_module=True,
+    #         cot_seq_length=max(num_hops) + 1 if isinstance(num_hops, list) else num_hops + 1,
+    #         cot_vocab_size=40,
+    #         log_every=10,
+    #         num_iterations=10_000,
+    #         batch_size=64,
+    #         hide_inputs_from_encoder=True,
+    #         rl_use_meta_reward=True,
+    #         rl_meta_reward_alpha=1e-2,
+    #         run_name=f"Cycle {num_hops}-40 RL_meta_1e-2 T1 inputs_hidden",
+    #     )
 
     # run_cot_transformer_exp(
     #     env_name="Cycle",
