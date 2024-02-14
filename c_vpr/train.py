@@ -811,6 +811,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     poppy_train_cot_module_using_poppy: bool = False,
     decode_from_sampled_cot_tokens: bool = True,
     hide_inputs_from_encoder: bool = False,
+    dummy_encoder: bool = False,
     classification_mode: str = "cls_token",
     learning_rate: float = 3e-4,
     num_iterations: int = 100_000,
@@ -921,6 +922,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
         cot_module_config,
         encoder_config,
         hide_inputs_from_encoder=hide_inputs_from_encoder,
+        dummy_encoder=dummy_encoder,
     )
 
     if env_name == "C_VPR":
@@ -1137,14 +1139,31 @@ if __name__ == "__main__":
         cot_seq_length=2,
         cot_vocab_size=5,
         log_every=1,
-        num_iterations=1000,
+        num_iterations=500,
         batch_size=64,
         hide_inputs_from_encoder=True,
-        run_name="Cycle 1-5 COT T1 inputs_hidden",
+        dummy_encoder=True,
+        run_name="Cycle 1-5 COT T1 inputs_hidden dummy_encoder",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
-        mode=MODE.COT,
+        mode=MODE.RL,
+        train_num_hops=1,
+        eval_num_hops=1,
+        seq_length=5,
+        cot_module=True,
+        cot_seq_length=2,
+        cot_vocab_size=5,
+        log_every=1,
+        num_iterations=500,
+        batch_size=64,
+        hide_inputs_from_encoder=True,
+        dummy_encoder=True,
+        run_name="Cycle 1-5 RL T1 inputs_hidden dummy_encoder",
+    )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
         train_num_hops=1,
         eval_num_hops=1,
         seq_length=5,
@@ -1155,25 +1174,13 @@ if __name__ == "__main__":
         num_iterations=1000,
         batch_size=64,
         hide_inputs_from_encoder=True,
-        cot_entropy_weight=1e-1,
-        run_name="Cycle 1-5 COT T1 inputs_hidden entropy_weight_1e-1",
+        dummy_encoder=True,
+        rl_use_meta_reward=True,
+        rl_meta_reward_alpha=1e-3,
+        rl_meta_reward_use_baseline=True,
+        run_name="Cycle 1-5 RL_meta_1e-3 baseline T1 inputs_hidden dummy_encoder",
     )
 
-    # run_augmented_transformer_exp(
-    #     env_name="Cycle",
-    #     mode=MODE.RL,
-    #     train_num_hops=1,
-    #     eval_num_hops=1,
-    #     seq_length=5,
-    #     cot_module=True,
-    #     cot_seq_length=2,
-    #     cot_vocab_size=5,
-    #     log_every=1,
-    #     num_iterations=1000,
-    #     batch_size=64,
-    #     hide_inputs_from_encoder=True,
-    #     run_name="Cycle 1-5 RL T1 inputs_hidden",
-    # )
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.RL,
