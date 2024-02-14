@@ -1127,6 +1127,55 @@ def run_cot_transformer_exp(  # noqa: CCR001
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=5,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=5,
+    #     log_every=1,
+    #     num_iterations=1000,
+    #     batch_size=64,
+    #     hide_inputs_from_encoder=True,
+    #     run_name="Cycle 1-5 RL T1 inputs_hidden",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=5,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=5,
+    #     log_every=1,
+    #     num_iterations=1000,
+    #     batch_size=64,
+    #     hide_inputs_from_encoder=True,
+    #     cot_entropy_weight=1e-2,
+    #     run_name="Cycle 1-5 RL T1 inputs_hidden entropy_weight_1e-2",
+    # )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=5,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=5,
+    #     log_every=1,
+    #     num_iterations=1000,
+    #     batch_size=64,
+    #     hide_inputs_from_encoder=True,
+    #     rl_use_meta_reward=True,
+    #     rl_meta_reward_alpha=1e-3,
+    #     rl_meta_reward_use_baseline=True,
+    #     run_name="Cycle 1-5 RL_meta_1e-3 T1 baseline inputs_hidden",
+    # )
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
@@ -1140,23 +1189,11 @@ if __name__ == "__main__":
         num_iterations=1000,
         batch_size=64,
         hide_inputs_from_encoder=True,
-        run_name="Cycle 1-5 RL T1 inputs_hidden",
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=1,
-        eval_num_hops=1,
-        seq_length=5,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_vocab_size=5,
-        log_every=1,
-        num_iterations=1000,
-        batch_size=64,
-        hide_inputs_from_encoder=True,
-        cot_entropy_weight=1e-2,
-        run_name="Cycle 1-5 RL T1 inputs_hidden entropy_weight_1e-2",
+        rl_use_meta_reward=True,
+        rl_meta_reward_alpha=1e-3,
+        rl_meta_reward_use_baseline=True,
+        cot_entropy_weight=3e-2,
+        run_name="Cycle 1-5 RL_meta_1e-3 T1 baseline inputs_hidden entropy_weight_3e-2",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -1174,7 +1211,8 @@ if __name__ == "__main__":
         rl_use_meta_reward=True,
         rl_meta_reward_alpha=1e-3,
         rl_meta_reward_use_baseline=True,
-        run_name="Cycle 1-5 RL_meta_1e-3 T1 baseline inputs_hidden",
+        cot_entropy_weight=6e-2,
+        run_name="Cycle 1-5 RL_meta_1e-3 T1 baseline inputs_hidden entropy_weight_6e-2",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -1192,8 +1230,8 @@ if __name__ == "__main__":
         rl_use_meta_reward=True,
         rl_meta_reward_alpha=1e-3,
         rl_meta_reward_use_baseline=True,
-        cot_entropy_weight=1e-2,
-        run_name="Cycle 1-5 RL_meta_1e-3 T1 baseline inputs_hidden entropy_weight_1e-2",
+        cot_entropy_weight=9e-2,
+        run_name="Cycle 1-5 RL_meta_1e-3 T1 baseline inputs_hidden entropy_weight_9e-2",
     )
 
     # for num_hops in [1, 2, [1, 2]]:
