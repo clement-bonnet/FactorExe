@@ -1221,6 +1221,22 @@ if __name__ == "__main__":
         dummy_encoder=True,
         run_name="Cycle 1-20 RL bs_16384 lr_1e-4 T1 dummy_encoder",
     )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=1,
+        eval_num_hops=1,
+        seq_length=20,
+        cot_module=True,
+        cot_seq_length=2,
+        cot_vocab_size=20,
+        log_every=10,
+        num_iterations=500,
+        batch_size=16384,
+        learning_rate=3e-5,
+        dummy_encoder=True,
+        run_name="Cycle 1-20 RL bs_16384 lr_3e-5 T1 dummy_encoder",
+    )
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.RL,
