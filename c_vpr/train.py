@@ -793,7 +793,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     encoder_cot_encoder_num_repeat: int = 0,
     encoder_cot_encoder_num_layers: int = 0,
     encoder_cross_transformer_num_repeat: int = 1,
-    encoder_cross_transformer_num_layers: int = 2,
+    encoder_cross_transformer_num_layers: int = 1,
     emb_dim: int = 384,
     num_heads: int = 6,
     mlp_dim_factor: float = 4,
