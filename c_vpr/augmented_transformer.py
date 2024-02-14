@@ -408,12 +408,24 @@ class AugmentedTransformer(nn.Module):
     """Transformer Model which produces intermediate CoT tokens."""
 
     cot_module_config: Optional[CoTModuleConfig]
-    encoder_config: TransformerConfig
+    encoder_config: EncoderConfig
     hide_inputs_from_encoder: bool = False
+    dummy_encoder: bool = False
 
     def setup(self) -> None:
         self.cot_module = CoTModule(self.cot_module_config) if self.cot_module_config else None
-        self.encoder = Encoder(self.encoder_config)
+        if self.dummy_encoder:
+            # Create a temperature parameter to train
+            self.temperature = self.param("temperature", nn.initializers.ones, (1,))
+            self.encoder = (
+                lambda inputs, cot_tokens, *args, **kwargs: jax.nn.one_hot(
+                    cot_tokens[..., -1],
+                    self.encoder_config.input_cross_transformer_config.output_vocab_size,
+                )
+                / self.temperature
+            )
+        else:
+            self.encoder = Encoder(self.encoder_config)
 
     def cot_module_generate_cot_logits(
         self,
