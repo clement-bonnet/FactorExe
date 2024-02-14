@@ -714,6 +714,8 @@ class Trainer:
                         fill=(255, 255, 255),
                     )
                     metrics.update({k: wandb.Image(img)})
+            if self.model.dummy_encoder:
+                metrics.update(dummy_encoder_temperature=state.params["temperature"].item())
             wandb.log(metrics, step=epoch * log_every)
         return state
 
@@ -1139,7 +1141,7 @@ if __name__ == "__main__":
         cot_seq_length=2,
         cot_vocab_size=5,
         log_every=1,
-        num_iterations=500,
+        num_iterations=300,
         batch_size=64,
         hide_inputs_from_encoder=True,
         dummy_encoder=True,
@@ -1155,7 +1157,7 @@ if __name__ == "__main__":
         cot_seq_length=2,
         cot_vocab_size=5,
         log_every=1,
-        num_iterations=500,
+        num_iterations=300,
         batch_size=64,
         hide_inputs_from_encoder=True,
         dummy_encoder=True,
@@ -1171,7 +1173,7 @@ if __name__ == "__main__":
         cot_seq_length=2,
         cot_vocab_size=5,
         log_every=1,
-        num_iterations=1000,
+        num_iterations=300,
         batch_size=64,
         hide_inputs_from_encoder=True,
         dummy_encoder=True,
