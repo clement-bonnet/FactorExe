@@ -436,6 +436,7 @@ class Trainer:
             else:
                 rewards = jax.lax.stop_gradient(-supervised_losses)
 
+            # TODO: check that this is correct
             cot_tokens_all_log_prob = jax.nn.log_softmax(cot_tokens_logits, axis=-1)
             cot_tokens_log_prob = jnp.take_along_axis(
                 cot_tokens_all_log_prob, cot_tokens[..., None], axis=-1
@@ -1131,9 +1132,25 @@ def run_cot_transformer_exp(  # noqa: CCR001
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.COT,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=5,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=5,
+    #     log_every=1,
+    #     num_iterations=300,
+    #     batch_size=64,
+    #     hide_inputs_from_encoder=True,
+    #     dummy_encoder=True,
+    #     run_name="Cycle 1-5 COT T1 inputs_hidden dummy_encoder",
+    # )
     run_augmented_transformer_exp(
         env_name="Cycle",
-        mode=MODE.COT,
+        mode=MODE.RL,
         train_num_hops=1,
         eval_num_hops=1,
         seq_length=5,
@@ -1145,7 +1162,8 @@ if __name__ == "__main__":
         batch_size=64,
         hide_inputs_from_encoder=True,
         dummy_encoder=True,
-        run_name="Cycle 1-5 COT T1 inputs_hidden dummy_encoder",
+        cot_entropy_weight=1e-3,
+        run_name="Cycle 1-5 RL cot_entropy_weight_1e-3 T1 inputs_hidden dummy_encoder",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -1161,7 +1179,8 @@ if __name__ == "__main__":
         batch_size=64,
         hide_inputs_from_encoder=True,
         dummy_encoder=True,
-        run_name="Cycle 1-5 RL T1 inputs_hidden dummy_encoder",
+        cot_entropy_weight=1e-2,
+        run_name="Cycle 1-5 RL cot_entropy_weight_1e-2 T1 inputs_hidden dummy_encoder",
     )
     run_augmented_transformer_exp(
         env_name="Cycle",
@@ -1177,11 +1196,45 @@ if __name__ == "__main__":
         batch_size=64,
         hide_inputs_from_encoder=True,
         dummy_encoder=True,
-        rl_use_meta_reward=True,
-        rl_meta_reward_alpha=1e-3,
-        rl_meta_reward_use_baseline=True,
-        run_name="Cycle 1-5 RL_meta_1e-3 baseline T1 inputs_hidden dummy_encoder",
+        cot_entropy_weight=5e-2,
+        run_name="Cycle 1-5 RL cot_entropy_weight_5e-2 T1 inputs_hidden dummy_encoder",
     )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=1,
+        eval_num_hops=1,
+        seq_length=5,
+        cot_module=True,
+        cot_seq_length=2,
+        cot_vocab_size=5,
+        log_every=1,
+        num_iterations=300,
+        batch_size=64,
+        hide_inputs_from_encoder=True,
+        dummy_encoder=True,
+        cot_entropy_weight=1e-1,
+        run_name="Cycle 1-5 RL cot_entropy_weight_1e-1 T1 inputs_hidden dummy_encoder",
+    )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=1,
+    #     eval_num_hops=1,
+    #     seq_length=5,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=5,
+    #     log_every=1,
+    #     num_iterations=300,
+    #     batch_size=64,
+    #     hide_inputs_from_encoder=True,
+    #     dummy_encoder=True,
+    #     rl_use_meta_reward=True,
+    #     rl_meta_reward_alpha=1e-3,
+    #     rl_meta_reward_use_baseline=True,
+    #     run_name="Cycle 1-5 RL_meta_1e-3 baseline T1 inputs_hidden dummy_encoder",
+    # )
 
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
