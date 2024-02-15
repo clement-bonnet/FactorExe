@@ -1189,71 +1189,34 @@ if __name__ == "__main__":
     #     rl_baseline_batch_size=1000,
     #     run_name="Cycle 1-4 RL baseline_1000 T1 dummy_encoder",
     # )
+    import itertools
 
-    # run_augmented_transformer_exp(
-    #     env_name="Cycle",
-    #     mode=MODE.RL,
-    #     train_num_hops=[1, 2],
-    #     eval_num_hops=[1, 2],
-    #     seq_length=10,
-    #     cot_module=True,
-    #     cot_seq_length=2,
-    #     cot_vocab_size=10,
-    #     log_every=100,
-    #     num_iterations=100_000,
-    #     batch_size=8192,
-    #     learning_rate=1e-4,
-    #     dummy_encoder=True,
-    #     run_name="Cycle [1,2]-10 RL bs_8192 lr_1e-4 T1 dummy_encoder",
-    # )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.COT,
-        train_num_hops=[1, 2],
-        eval_num_hops=[1, 2],
-        seq_length=10,
-        cot_module=True,
-        cot_seq_length=4,
-        cot_vocab_size=10,
-        log_every=100,
-        num_iterations=10_000,
-        batch_size=8192,
-        learning_rate=1e-4,
-        dummy_encoder=True,
-        run_name="Cycle [1,2]-10 COT bs_8192 lr_1e-4 T1 dummy_encoder",
-    )
-    # run_augmented_transformer_exp(
-    #     env_name="Cycle",
-    #     mode=MODE.RL,
-    #     train_num_hops=[1, 2, 3],
-    #     eval_num_hops=[1, 2, 3],
-    #     seq_length=10,
-    #     cot_module=True,
-    #     cot_seq_length=2,
-    #     cot_vocab_size=10,
-    #     log_every=100,
-    #     num_iterations=100_000,
-    #     batch_size=8192,
-    #     learning_rate=1e-4,
-    #     dummy_encoder=True,
-    #     run_name="Cycle [1,2,3]-10 RL bs_8192 lr_1e-4 T1 dummy_encoder",
-    # )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.COT,
-        train_num_hops=[1, 2, 3],
-        eval_num_hops=[1, 2, 3],
-        seq_length=10,
-        cot_module=True,
-        cot_seq_length=4,
-        cot_vocab_size=10,
-        log_every=100,
-        num_iterations=10_000,
-        batch_size=8192,
-        learning_rate=1e-4,
-        dummy_encoder=True,
-        run_name="Cycle [1,2,3]-10 COT bs_8192 lr_1e-4 T1 dummy_encoder",
-    )
+    for num_heads, emb_dim_per_head, mlp_dim_factor in itertools.product(
+        [1, 3, 9], [8, 32, 128], [1, 2, 4]
+    ):
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=1,
+            eval_num_hops=1,
+            seq_length=10,
+            cot_module=True,
+            cot_seq_length=1,
+            cot_vocab_size=10,
+            log_every=50,
+            num_iterations=10_000,
+            batch_size=4096,
+            learning_rate=1e-4,
+            dummy_encoder=True,
+            num_heads=num_heads,
+            emb_dim=num_heads * emb_dim_per_head,
+            mlp_dim_factor=mlp_dim_factor,
+            run_name=(
+                f"{num_heads=}, {emb_dim_per_head=}, {mlp_dim_factor=} Cycle "
+                "1-10 RL bs_8192 lr_1e-4 T1 dummy_encoder"
+            ),
+        )
+
     # run_augmented_transformer_exp(
     #     env_name="Cycle",
     #     mode=MODE.RL,
