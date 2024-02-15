@@ -767,6 +767,7 @@ class Trainer:
             .replace("[", "_")
             .replace("]", "_")
             .replace("+", "_")
+            .replace("=", "_")
         )
         artifact = wandb.Artifact(f"{run_name}--checkpoint", type="model")
         artifact.add_file(ckpt_path)
@@ -789,6 +790,7 @@ class Trainer:
             .replace("[", "_")
             .replace("]", "_")
             .replace("+", "_")
+            .replace("=", "_")
         )
         artifact = wandb.use_artifact(f"{run_name}--checkpoint:{version}")
         artifact_dir = artifact.download()
@@ -1203,8 +1205,8 @@ if __name__ == "__main__":
             cot_module=True,
             cot_seq_length=1,
             cot_vocab_size=10,
-            log_every=50,
-            num_iterations=10_000,
+            log_every=100,
+            num_iterations=20_000,
             batch_size=4096,
             learning_rate=1e-4,
             dummy_encoder=True,
