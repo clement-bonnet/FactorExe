@@ -827,9 +827,9 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     encoder_cot_encoder_num_layers: int = 0,
     encoder_cross_transformer_num_repeat: int = 1,
     encoder_cross_transformer_num_layers: int = 1,
-    emb_dim_per_head: int = 64,
-    num_heads: int = 6,
-    mlp_dim_factor: float = 4,
+    num_heads: int = 9,
+    emb_dim_per_head: int = 16,
+    mlp_dim_factor: float = 1,
     all_dropouts_rate: float = 0.0,
     cot_loss_weight_mixing: float = 1.0,
     cot_entropy_weight: float = 0.0,
@@ -845,9 +845,9 @@ def run_augmented_transformer_exp(  # noqa: CCR001
     decode_from_sampled_cot_tokens: bool = True,
     dummy_encoder: bool = False,
     classification_mode: str = "cls_token",
-    learning_rate: float = 3e-4,
+    learning_rate: float = 1e-4,
     num_iterations: int = 100_000,
-    batch_size: int = 256,
+    batch_size: int = 4096,
     eval_size: int = 500,
     log_every: int = 100,
     seed: int = 0,
@@ -1191,33 +1191,26 @@ if __name__ == "__main__":
     #     rl_baseline_batch_size=1000,
     #     run_name="Cycle 1-4 RL baseline_1000 T1 dummy_encoder",
     # )
-    import itertools
 
-    for bs, lr in itertools.product([256, 1024, 4096], [1e-4, 3e-4, 9e-4]):
-        num_heads = 9
-        emb_dim_per_head = 16
-        mlp_dim_factor = 1
+    for seq_length in [10, 12, 14, 16, 18, 20]:
         run_augmented_transformer_exp(
             env_name="Cycle",
             mode=MODE.RL,
             train_num_hops=1,
             eval_num_hops=1,
-            seq_length=10,
+            seq_length=seq_length,
             cot_module=True,
             cot_seq_length=1,
-            cot_vocab_size=10,
+            cot_vocab_size=seq_length,
             log_every=100,
-            num_iterations=20_000,
-            batch_size=bs,
-            learning_rate=lr,
+            num_iterations=40_000,
+            batch_size=4096,
+            learning_rate=1e-4,
             dummy_encoder=True,
-            num_heads=num_heads,
-            emb_dim_per_head=emb_dim_per_head,
-            mlp_dim_factor=mlp_dim_factor,
-            run_name=(
-                f"{bs=}, {lr=}, {num_heads=}, {emb_dim_per_head=}, {mlp_dim_factor=} Cycle "
-                "1-10 RL T1 dummy_encoder"
-            ),
+            num_heads=9,
+            emb_dim_per_head=16,
+            mlp_dim_factor=1,
+            run_name=(f"Cycle 1-{seq_length} RL T1 dummy_encoder"),
         )
 
     # run_augmented_transformer_exp(
