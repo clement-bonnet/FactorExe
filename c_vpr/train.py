@@ -1210,7 +1210,8 @@ if __name__ == "__main__":
             num_heads=9,
             emb_dim_per_head=16,
             mlp_dim_factor=1,
-            run_name=(f"Cycle 1-{seq_length} RL T1 dummy_encoder"),
+            cot_entropy_weight=1e-2,
+            run_name=(f"Cycle 1-{seq_length} RL T1 entropy_1e-2 dummy_encoder"),
         )
 
     # run_augmented_transformer_exp(
