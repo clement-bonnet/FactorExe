@@ -871,7 +871,7 @@ def run_augmented_transformer_exp(  # noqa: CCR001
         if mode in [MODE.COT, MODE.RL]:
             if mode == MODE.COT and cot_seq_length < max_num_hops + 1:
                 raise ValueError(
-                    f"cot_seq_length ({cot_seq_length}) is smaller than max_num_hops + 1"
+                    f"cot_seq_length ({cot_seq_length}) is smaller than max_num_hops + 1 "
                     f"({max_num_hops} + 1), which means that the chain of thought sequence is "
                     "too small compared to the number of hops. This is not encouraged and "
                     "raises an error for now."
@@ -1189,22 +1189,23 @@ if __name__ == "__main__":
     #     rl_baseline_batch_size=1000,
     #     run_name="Cycle 1-4 RL baseline_1000 T1 dummy_encoder",
     # )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=[1, 2],
-        eval_num_hops=[1, 2],
-        seq_length=10,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_vocab_size=10,
-        log_every=100,
-        num_iterations=100_000,
-        batch_size=8192,
-        learning_rate=1e-4,
-        dummy_encoder=True,
-        run_name="Cycle [1,2]-10 RL bs_8192 lr_1e-4 T1 dummy_encoder",
-    )
+
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=[1, 2],
+    #     eval_num_hops=[1, 2],
+    #     seq_length=10,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=10,
+    #     log_every=100,
+    #     num_iterations=100_000,
+    #     batch_size=8192,
+    #     learning_rate=1e-4,
+    #     dummy_encoder=True,
+    #     run_name="Cycle [1,2]-10 RL bs_8192 lr_1e-4 T1 dummy_encoder",
+    # )
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.COT,
@@ -1212,31 +1213,31 @@ if __name__ == "__main__":
         eval_num_hops=[1, 2],
         seq_length=10,
         cot_module=True,
-        cot_seq_length=3,
+        cot_seq_length=4,
         cot_vocab_size=10,
         log_every=100,
-        num_iterations=100_000,
+        num_iterations=10_000,
         batch_size=8192,
         learning_rate=1e-4,
         dummy_encoder=True,
         run_name="Cycle [1,2]-10 COT bs_8192 lr_1e-4 T1 dummy_encoder",
     )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=[1, 2, 3],
-        eval_num_hops=[1, 2, 3],
-        seq_length=10,
-        cot_module=True,
-        cot_seq_length=2,
-        cot_vocab_size=10,
-        log_every=100,
-        num_iterations=100_000,
-        batch_size=8192,
-        learning_rate=1e-4,
-        dummy_encoder=True,
-        run_name="Cycle [1,2,3]-10 RL bs_8192 lr_1e-4 T1 dummy_encoder",
-    )
+    # run_augmented_transformer_exp(
+    #     env_name="Cycle",
+    #     mode=MODE.RL,
+    #     train_num_hops=[1, 2, 3],
+    #     eval_num_hops=[1, 2, 3],
+    #     seq_length=10,
+    #     cot_module=True,
+    #     cot_seq_length=2,
+    #     cot_vocab_size=10,
+    #     log_every=100,
+    #     num_iterations=100_000,
+    #     batch_size=8192,
+    #     learning_rate=1e-4,
+    #     dummy_encoder=True,
+    #     run_name="Cycle [1,2,3]-10 RL bs_8192 lr_1e-4 T1 dummy_encoder",
+    # )
     run_augmented_transformer_exp(
         env_name="Cycle",
         mode=MODE.COT,
@@ -1244,10 +1245,10 @@ if __name__ == "__main__":
         eval_num_hops=[1, 2, 3],
         seq_length=10,
         cot_module=True,
-        cot_seq_length=3,
+        cot_seq_length=4,
         cot_vocab_size=10,
         log_every=100,
-        num_iterations=100_000,
+        num_iterations=10_000,
         batch_size=8192,
         learning_rate=1e-4,
         dummy_encoder=True,
