@@ -1193,7 +1193,9 @@ if __name__ == "__main__":
     # )
     import itertools
 
-    for num_heads, emb_dim_per_head, mlp_dim_factor in itertools.product([9, 12], [16, 24], [1, 4]):
+    num_heads = 16
+    emb_dim_per_head = 16
+    for mlp_dim_factor in [1, 4]:
         run_augmented_transformer_exp(
             env_name="Cycle",
             mode=MODE.RL,
@@ -1214,6 +1216,33 @@ if __name__ == "__main__":
             run_name=(
                 f"{num_heads=}, {emb_dim_per_head=}, {mlp_dim_factor=} Cycle "
                 "1-10 RL bs_4096 lr_1e-4 T1 dummy_encoder"
+            ),
+        )
+
+    for bs, lr in itertools.product([256, 1024, 4096], [1e-4, 3e-4, 9e-4]):
+        num_heads = 12
+        emb_dim_per_head = 24
+        mlp_dim_factor = 4
+        run_augmented_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=1,
+            eval_num_hops=1,
+            seq_length=10,
+            cot_module=True,
+            cot_seq_length=1,
+            cot_vocab_size=10,
+            log_every=100,
+            num_iterations=20_000,
+            batch_size=bs,
+            learning_rate=lr,
+            dummy_encoder=True,
+            num_heads=num_heads,
+            emb_dim_per_head=emb_dim_per_head,
+            mlp_dim_factor=mlp_dim_factor,
+            run_name=(
+                f"{bs=}, {lr=}, {num_heads=}, {emb_dim_per_head=}, {mlp_dim_factor=} Cycle "
+                "1-10 RL T1 dummy_encoder"
             ),
         )
 
