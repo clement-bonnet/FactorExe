@@ -1215,7 +1215,7 @@ if __name__ == "__main__":
             mlp_dim_factor=mlp_dim_factor,
             run_name=(
                 f"{num_heads=}, {emb_dim_per_head=}, {mlp_dim_factor=} Cycle "
-                "1-10 RL bs_8192 lr_1e-4 T1 dummy_encoder"
+                "1-10 RL bs_4096 lr_1e-4 T1 dummy_encoder"
             ),
         )
 
