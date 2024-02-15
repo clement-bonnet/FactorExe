@@ -142,7 +142,6 @@ class Trainer:
                             return_cot=return_cot,
                             return_target=True,
                             cot_pading_length=max(self.train_num_hops) - n_hops,
-                            cot_pading_value=self.cot_start_token,
                         )
                         for n_hops in self.train_num_hops
                     ],
