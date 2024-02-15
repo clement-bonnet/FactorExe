@@ -1193,7 +1193,8 @@ if __name__ == "__main__":
     # )
     import itertools
 
-    for seq_length, entropy_weight in itertools.product([15, 20, 25, 30, 40], [1e-2, 3e-3, 1e-3]):
+    for lr, entropy_weight in itertools.product([1e-4, 6e-5, 3e-5, 1e-5], [1e-3, 5e-3]):
+        seq_length = 25
         run_augmented_transformer_exp(
             env_name="Cycle",
             mode=MODE.RL,
@@ -1203,16 +1204,16 @@ if __name__ == "__main__":
             cot_module=True,
             cot_seq_length=1,
             cot_vocab_size=seq_length,
-            log_every=100,
-            num_iterations=40_000,
+            log_every=200,
+            num_iterations=50_000,
             batch_size=4096,
-            learning_rate=1e-4,
+            learning_rate=lr,
             dummy_encoder=True,
             num_heads=9,
             emb_dim_per_head=16,
             mlp_dim_factor=1,
             cot_entropy_weight=entropy_weight,
-            run_name=(f"Cycle 1-{seq_length} {entropy_weight=} RL T1 dummy_encoder"),
+            run_name=(f"Cycle 1-{seq_length} {entropy_weight=} {lr=} RL T1 dummy_encoder"),
         )
 
     # run_augmented_transformer_exp(
