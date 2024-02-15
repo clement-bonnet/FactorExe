@@ -548,8 +548,8 @@ if __name__ == "__main__":
         input_transformer_config=TransformerConfig(
             vocab_size=seq_length,
             output_vocab_size=None,
-            emb_dim=384,
             num_heads=6,
+            emb_dim_per_head=64,
             num_layers=1,
             num_repeat_model=1,
             mlp_dim_factor=4,
@@ -560,8 +560,8 @@ if __name__ == "__main__":
         cot_cross_transformer_config=TransformerConfig(
             vocab_size=None,
             output_vocab_size=None,
-            emb_dim=384,
             num_heads=6,
+            emb_dim_per_head=64,
             num_layers=1,
             num_repeat_model=1,
             mlp_dim_factor=4,
@@ -578,8 +578,8 @@ if __name__ == "__main__":
         cot_transformer_config=TransformerConfig(
             vocab_size=cot_vocab_size,
             output_vocab_size=None,
-            emb_dim=384,
             num_heads=6,
+            emb_dim_per_head=64,
             num_layers=1,
             num_repeat_model=1,
             mlp_dim_factor=4,
@@ -592,8 +592,8 @@ if __name__ == "__main__":
         input_cross_transformer_config=TransformerConfig(
             vocab_size=seq_length,
             output_vocab_size=seq_length,
-            emb_dim=384,
             num_heads=6,
+            emb_dim_per_head=64,
             num_layers=1,
             num_repeat_model=1,
             mlp_dim_factor=4,

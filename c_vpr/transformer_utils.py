@@ -7,9 +7,9 @@ import jax.numpy as jnp
 from flax import linen as nn
 
 if TYPE_CHECKING:
-    from dataclasses import dataclass
+    from dataclasses import dataclass, field
 else:
-    from flax.struct import dataclass
+    from flax.struct import dataclass, field
 
 
 @dataclass
@@ -23,7 +23,7 @@ class TransformerConfig:
     num_repeat_model: int
     num_layers: int
     num_heads: int
-    emb_dim: int
+    emb_dim_per_head: int
     mlp_dim_factor: float
     max_len: Optional[int]
     dropout_rate: float
@@ -31,6 +31,10 @@ class TransformerConfig:
     use_bias: bool = False
     activation: str = "silu"
     dtype: Any = jnp.float32
+    emb_dim: int = field(default=None)
+
+    def __post_init__(self):
+        object.__setattr__(self, "emb_dim", self.num_heads * self.emb_dim_per_head)
 
 
 class MlpBlock(nn.Module):
