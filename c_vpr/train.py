@@ -1193,9 +1193,7 @@ if __name__ == "__main__":
     # )
     import itertools
 
-    for num_heads, emb_dim_per_head, mlp_dim_factor in itertools.product(
-        [1, 3, 9], [8, 32, 128], [1, 2, 4]
-    ):
+    for num_heads, emb_dim_per_head, mlp_dim_factor in itertools.product([9], [16, 48], [1, 2, 4]):
         run_augmented_transformer_exp(
             env_name="Cycle",
             mode=MODE.RL,
