@@ -141,7 +141,8 @@ class Trainer:
                             num_hops=n_hops,
                             return_cot=return_cot,
                             return_target=True,
-                            cot_pading_length=max(self.train_num_hops) - n_hops,
+                            cot_pading_length=self.model.encoder_config.cot_seq_length
+                            - (n_hops + 1),
                         )
                         for n_hops in self.train_num_hops
                     ],
