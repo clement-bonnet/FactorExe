@@ -1210,11 +1210,11 @@ if __name__ == "__main__":
         batch_size=4096,
         learning_rate=1e-4,
         dummy_encoder=True,
-        num_heads=14,
-        emb_dim_per_head=16,
+        num_heads=6,
+        emb_dim_per_head=64,
         mlp_dim_factor=1,
         cot_entropy_weight=0.0,
-        run_name=("Cycle 1-14 RL T1+T1 num_heads_14 dummy_encoder"),
+        run_name=("Cycle 1-15 RL T1+T1 emb_6_64 dummy_encoder"),
     )
 
     # import itertools
