@@ -1202,7 +1202,7 @@ if __name__ == "__main__":
         cot_module_input_encoder_num_repeat=1,
         cot_module_input_encoder_num_layers=1,
         cot_module_cross_transformer_num_repeat=1,
-        cot_module_cross_transformer_num_layers=1,
+        cot_module_cross_transformer_num_layers=2,
         cot_seq_length=1,
         cot_vocab_size=15,
         log_every=100,
@@ -1210,11 +1210,11 @@ if __name__ == "__main__":
         batch_size=4096,
         learning_rate=1e-4,
         dummy_encoder=True,
-        num_heads=6,
-        emb_dim_per_head=64,
+        num_heads=9,
+        emb_dim_per_head=16,
         mlp_dim_factor=1,
-        cot_entropy_weight=0.0,
-        run_name=("Cycle 1-15 RL T1+T1 emb_6_64 dummy_encoder"),
+        cot_entropy_weight=1e-3,
+        run_name=("Cycle 1-15 RL T1+T2 ent_1e-3 dummy_encoder"),
     )
 
     # import itertools
