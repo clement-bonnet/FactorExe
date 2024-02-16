@@ -1192,31 +1192,30 @@ if __name__ == "__main__":
     #     run_name="Cycle 1-4 RL baseline_1000 T1 dummy_encoder",
     # )
 
-    for seq_length in [15, 20, 25, 30, 35]:
-        run_augmented_transformer_exp(
-            env_name="Cycle",
-            mode=MODE.RL,
-            train_num_hops=1,
-            eval_num_hops=1,
-            seq_length=seq_length,
-            cot_module=True,
-            cot_module_input_encoder_num_repeat=1,
-            cot_module_input_encoder_num_layers=1,
-            cot_module_cross_transformer_num_repeat=1,
-            cot_module_cross_transformer_num_layers=1,
-            cot_seq_length=1,
-            cot_vocab_size=seq_length,
-            log_every=100,
-            num_iterations=20_000,
-            batch_size=4096,
-            learning_rate=1e-4,
-            dummy_encoder=True,
-            num_heads=9,
-            emb_dim_per_head=16,
-            mlp_dim_factor=1,
-            cot_entropy_weight=0.0,
-            run_name=(f"Cycle 1-{seq_length} RL T1+T1 dummy_encoder"),
-        )
+    run_augmented_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=1,
+        eval_num_hops=1,
+        seq_length=15,
+        cot_module=True,
+        cot_module_input_encoder_num_repeat=1,
+        cot_module_input_encoder_num_layers=1,
+        cot_module_cross_transformer_num_repeat=1,
+        cot_module_cross_transformer_num_layers=2,
+        cot_seq_length=1,
+        cot_vocab_size=15,
+        log_every=100,
+        num_iterations=20_000,
+        batch_size=4096,
+        learning_rate=1e-4,
+        dummy_encoder=True,
+        num_heads=9,
+        emb_dim_per_head=16,
+        mlp_dim_factor=1,
+        cot_entropy_weight=0.0,
+        run_name=("Cycle 1-15 RL T1+T2 dummy_encoder"),
+    )
 
     # import itertools
 
