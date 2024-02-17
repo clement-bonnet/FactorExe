@@ -306,7 +306,7 @@ class Trainer:
             cot_log_probs = jnp.sum(cot_log_probs, axis=-1)
             rl_loss = jnp.mean(-rewards * cot_log_probs)
             loss = self.rl_loss_weight_mixing * rl_loss - self.cot_entropy_weight * cot_entropy
-            logits = cot_tokens_logits[..., -1]
+            logits = cot_tokens_logits[:, -1, :]
             return loss, (rl_loss, cot_entropy, logits)
 
         grads, (rl_loss, cot_entropy, logits) = jax.grad(loss_fn, has_aux=True)(state.params)
@@ -1371,19 +1371,19 @@ if __name__ == "__main__":
         mode=MODE.RL,
         train_num_hops=1,
         eval_num_hops=1,
-        seq_length=15,
+        seq_length=10,
         cot_seq_length=1,
-        cot_vocab_size=15,
+        cot_vocab_size=10,
         transformer_num_repeat=1,
         transformer_num_layers=1,
         num_heads=9,
         emb_dim_per_head=16,
         mlp_dim_factor=1,
         log_every=10,
-        num_iterations=20_000,
+        num_iterations=5_000,
         batch_size=4096,
         learning_rate=1e-4,
-        run_name=("Cycle 1-15 RL joint_transformer T1"),
+        run_name=("Cycle 1-10 RL joint_transformer T1"),
     )
 
     # import itertools
