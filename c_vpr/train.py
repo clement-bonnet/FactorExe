@@ -1424,11 +1424,11 @@ if __name__ == "__main__":
         emb_dim_per_head=16,
         mlp_dim_factor=4,
         log_every=1000,
-        num_iterations=200_000,
-        batch_size=512,
+        num_iterations=400_000,
+        batch_size=1024,
         learning_rate=1e-4,
         cot_entropy_weight=2e-3,
-        run_name="Cycle 1-30 RL bs_512 embed_6_16_4 ent_2e-3 joint_transformer T1",
+        run_name="Cycle 1-30 RL bs_1024 embed_6_16_4 ent_2e-3 joint_transformer T1",
     )
 
     # import itertools
