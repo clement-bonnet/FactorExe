@@ -1421,13 +1421,13 @@ if __name__ == "__main__":
         transformer_num_repeat=1,
         transformer_num_layers=1,
         num_heads=6,
-        emb_dim_per_head=16,
+        emb_dim_per_head=8,
         mlp_dim_factor=1,
         log_every=500,
         num_iterations=100_000,
         batch_size=512,
         learning_rate=1e-4,
-        run_name="Cycle 1-40 RL bs_512 embed_6_16_1 joint_transformer T1",
+        run_name="Cycle 1-40 RL bs_512 embed_6_8_1 joint_transformer T1",
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1438,15 +1438,15 @@ if __name__ == "__main__":
         cot_seq_length=1,
         cot_vocab_size=40,
         transformer_num_repeat=1,
-        transformer_num_layers=1,
+        transformer_num_layers=2,
         num_heads=6,
         emb_dim_per_head=16,
         mlp_dim_factor=1,
         log_every=500,
         num_iterations=100_000,
-        batch_size=2048,
+        batch_size=512,
         learning_rate=1e-4,
-        run_name="Cycle 1-40 RL bs_2048 embed_6_16_1 joint_transformer T1",
+        run_name="Cycle 1-40 RL bs_512 embed_6_16_1 joint_transformer T2",
     )
 
     # import itertools
