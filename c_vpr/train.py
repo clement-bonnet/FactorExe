@@ -19,6 +19,7 @@ from c_vpr.augmented_transformer import (
     CoTModuleConfig,
     EncoderConfig,
 )
+from c_vpr.cot_joint_transformer import CoTJointTransformer, CoTJointTransformerConfig
 from c_vpr.cot_transformer import CoTTransformer, CoTTransformerConfig
 from c_vpr.cycle import Cycle
 from c_vpr.env import C_VPR, Env
@@ -265,6 +266,54 @@ class Trainer:
         metrics = self.compute_metrics(logits, labels)
         grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
         metrics.update(grad_norm=grad_norm, cot_loss=cot_loss, cot_entropy=cot_entropy)
+        return state, metrics
+
+    def train_step_rl_joint_transformer(
+        self, state: TrainState, key: chex.PRNGKey
+    ) -> tuple[TrainState, dict]:
+        num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
+
+        num_hops = jax.random.choice(
+            num_hops_key,
+            jnp.asarray(self.train_num_hops),
+            (self.batch_size,),
+            replace=True,
+        )
+        sample_keys = jax.random.split(sample_key, self.batch_size)
+        inputs, labels = jax.vmap(self._sample_n_hops_for_train)(sample_keys, num_hops)
+
+        def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
+            cot_tokens_logits, cot_tokens = state.apply_fn(
+                variables={"params": params},
+                inputs=inputs,
+                deterministic=False,
+                num_hops=num_hops,
+                cot_sampling=True,
+                cot_key=cot_key,
+                rngs={"dropout": dropout_key},
+            )
+
+            cot_entropy = -jnp.mean(
+                jnp.sum(
+                    jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
+                )
+            )
+            rewards = jnp.asarray(cot_tokens[:, -1] == labels, float)
+            cot_all_log_probs = jax.nn.log_softmax(cot_tokens_logits, axis=-1)
+            cot_log_probs = jnp.take_along_axis(
+                cot_all_log_probs, cot_tokens[..., None], axis=-1
+            ).squeeze(-1)
+            cot_log_probs = jnp.sum(cot_log_probs, axis=-1)
+            rl_loss = jnp.mean(-rewards * cot_log_probs)
+            loss = self.rl_loss_weight_mixing * rl_loss - self.cot_entropy_weight * cot_entropy
+            logits = cot_tokens_logits[..., -1]
+            return loss, (rl_loss, cot_entropy, logits)
+
+        grads, (rl_loss, cot_entropy, logits) = jax.grad(loss_fn, has_aux=True)(state.params)
+        state = state.apply_gradients(grads=grads)
+        metrics = self.compute_metrics(logits, labels)
+        grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
+        metrics.update(grad_norm=grad_norm, rl_loss=rl_loss, cot_entropy=cot_entropy)
         return state, metrics
 
     def train_step_rl(  # noqa: CCR001
@@ -644,6 +693,15 @@ class Trainer:
                 raise NotImplementedError("CoTTransformer does not support COT training yet.")
             elif self.mode == MODE.RL:
                 state, metrics = jax.lax.scan(self.train_step_rl_cot_transformer, state, keys)
+        elif isinstance(self.model, CoTJointTransformer):
+            if self.mode == MODE.SUPERVISED:
+                raise NotImplementedError(
+                    "CoTJointTransformer does not support supervised training yet."
+                )
+            elif self.mode == MODE.COT:
+                raise NotImplementedError("CoTJointTransformer does not support COT training yet.")
+            elif self.mode == MODE.RL:
+                state, metrics = jax.lax.scan(self.train_step_rl_joint_transformer, state, keys)
         else:
             if self.mode == MODE.SUPERVISED:
                 state, metrics = jax.lax.scan(self.train_step_supervised, state, keys)
@@ -699,14 +757,24 @@ class Trainer:
             inputs, labels = jax.vmap(
                 functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
             )(keys)
-            _, (cot_tokens, _) = state.apply_fn(
-                variables={"params": state.params},
-                inputs=inputs,
-                deterministic=True,
-                num_hops=jnp.full((num_samples,), num_hops),
-                cot_key=sample_key,
-                cot_sampling=True,
-            )
+            if isinstance(self.model, CoTJointTransformer):
+                _, cot_tokens = state.apply_fn(
+                    variables={"params": state.params},
+                    inputs=inputs,
+                    deterministic=True,
+                    num_hops=jnp.full((num_samples,), num_hops),
+                    cot_key=sample_key,
+                    cot_sampling=True,
+                )
+            else:
+                _, (cot_tokens, _) = state.apply_fn(
+                    variables={"params": state.params},
+                    inputs=inputs,
+                    deterministic=True,
+                    num_hops=jnp.full((num_samples,), num_hops),
+                    cot_key=sample_key,
+                    cot_sampling=True,
+                )
             metrics.update({f"test/cot_tokens/num_hops:{num_hops}": (inputs, labels, cot_tokens)})
 
         return metrics
@@ -741,7 +809,7 @@ class Trainer:
                         fill=(255, 255, 255),
                     )
                     metrics.update({k: wandb.Image(img)})
-            if self.model.dummy_encoder:
+            if not isinstance(self.model, CoTJointTransformer) and self.model.dummy_encoder:
                 metrics.update(dummy_encoder_temperature=state.params["temperature"].item())
             wandb.log(metrics, step=epoch * log_every)
         return state
@@ -1157,6 +1225,112 @@ def run_cot_transformer_exp(  # noqa: CCR001
     wandb.finish()
 
 
+def run_cot_joint_transformer_exp(  # noqa: CCR001
+    env_name: str = "Cycle",
+    mode: MODE = MODE.RL,
+    train_num_hops: int | list[int] = 3,
+    eval_num_hops: int | list[int] | None = None,
+    seq_length: int = 40,
+    cot_seq_length: int = 3,
+    cot_vocab_size: int = 3,
+    transformer_num_repeat: int = 1,
+    transformer_num_layers: int = 1,
+    num_heads: int = 9,
+    emb_dim_per_head: int = 16,
+    mlp_dim_factor: float = 1,
+    all_dropouts_rate: float = 0.0,
+    cot_loss_weight_mixing: float = 1.0,
+    cot_entropy_weight: float = 0.0,
+    rl_loss_weight_mixing: float = 1.0,
+    decode_from_sampled_cot_tokens: bool = True,
+    learning_rate: float = 1e-4,
+    num_iterations: int = 100_000,
+    batch_size: int = 4096,
+    eval_size: int = 500,
+    log_every: int = 100,
+    seed: int = 0,
+    run_name: Optional[str] = None,
+) -> None:
+    if isinstance(train_num_hops, list):
+        max_num_hops = max(train_num_hops)
+        if isinstance(eval_num_hops, list):
+            max_num_hops = max(max_num_hops, max(eval_num_hops))
+        elif isinstance(eval_num_hops, int):
+            max_num_hops = max(max_num_hops, eval_num_hops)
+    elif isinstance(train_num_hops, int):
+        max_num_hops = train_num_hops
+        if isinstance(eval_num_hops, list):
+            max_num_hops = max(max_num_hops, max(eval_num_hops))
+        elif isinstance(eval_num_hops, int):
+            max_num_hops = max(max_num_hops, eval_num_hops)
+    else:
+        raise ValueError(f"Unknown type for train_num_hops: {type(train_num_hops)}")
+
+    cot_joint_transformer_config = CoTJointTransformerConfig(
+        transformer_config=TransformerConfig(
+            vocab_size=seq_length,
+            output_vocab_size=None,
+            num_repeat_model=transformer_num_repeat,
+            num_layers=transformer_num_layers,
+            num_heads=num_heads,
+            emb_dim_per_head=emb_dim_per_head,
+            mlp_dim_factor=mlp_dim_factor,
+            max_len=seq_length,
+            dropout_rate=all_dropouts_rate,
+            attention_dropout_rate=all_dropouts_rate,
+        ),
+        cot_seq_length=cot_seq_length,
+        cot_vocab_size=cot_vocab_size,
+        max_num_hops=max_num_hops,
+    )
+    model = CoTJointTransformer(cot_joint_transformer_config)
+
+    if env_name == "C_VPR":
+        env = C_VPR(seq_length)
+    elif env_name == "Cycle":
+        env = Cycle(seq_length)  # type: ignore
+    else:
+        raise ValueError(f"Unknown environment: {env_name}")
+
+    wandb.init(
+        project="FactorExe",
+        config=cot_joint_transformer_config.__dict__,
+        name=run_name,
+    )
+    wandb.config.train_num_hops = train_num_hops
+    wandb.config.eval_num_hops = eval_num_hops
+    wandb.config.learning_rate = learning_rate
+    wandb.config.num_iterations = num_iterations
+    wandb.config.batch_size = batch_size
+    wandb.config.eval_size = eval_size
+    wandb.config.seed = seed
+    wandb.config.mode = mode.name
+    wandb.config.cot_loss_weight_mixing = cot_loss_weight_mixing
+    wandb.config.rl_loss_weight_mixing = rl_loss_weight_mixing
+    wandb.config.decode_from_sampled_cot_tokens = decode_from_sampled_cot_tokens
+
+    trainer = Trainer(
+        model,
+        env,
+        mode,
+        train_num_hops,
+        eval_num_hops,
+        seq_length,
+        batch_size,
+        eval_size,
+        cot_start_token=cot_joint_transformer_config.cot_vocab_size,
+        cot_loss_weight_mixing=cot_loss_weight_mixing,
+        cot_entropy_weight=cot_entropy_weight,
+        rl_loss_weight_mixing=rl_loss_weight_mixing,
+        decode_from_sampled_cot_tokens=decode_from_sampled_cot_tokens,
+    )
+    key = jax.random.PRNGKey(seed)
+    state = trainer.init_train_state(key, learning_rate)
+    state = trainer.train(state, key, num_iterations, log_every)
+    trainer.save_checkpoint("checkpoint.msgpack", state, iteration=num_iterations)
+    wandb.finish()
+
+
 if __name__ == "__main__":
     # Selected C_VPR difficulties: [5-150, 10-300, 20-600]
     # Selected Cycle difficulties: []
@@ -1192,47 +1366,24 @@ if __name__ == "__main__":
     #     run_name="Cycle 1-4 RL baseline_1000 T1 dummy_encoder",
     # )
 
-    run_augmented_transformer_exp(
+    run_cot_joint_transformer_exp(
         env_name="Cycle",
-        mode=MODE.SUPERVISED,
+        mode=MODE.RL,
         train_num_hops=1,
         eval_num_hops=1,
         seq_length=15,
-        cot_module=False,
-        encoder_cross_transformer_num_repeat=1,
-        encoder_cross_transformer_num_layers=1,
         cot_seq_length=1,
         cot_vocab_size=15,
-        log_every=100,
-        num_iterations=20_000,
-        batch_size=4096,
-        learning_rate=1e-4,
-        dummy_encoder=False,
+        transformer_num_repeat=1,
+        transformer_num_layers=1,
         num_heads=9,
         emb_dim_per_head=16,
         mlp_dim_factor=1,
-        run_name=("Cycle 1-15 SUPERVISED T1"),
-    )
-    run_augmented_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.SUPERVISED,
-        train_num_hops=1,
-        eval_num_hops=1,
-        seq_length=15,
-        cot_module=False,
-        encoder_cross_transformer_num_repeat=1,
-        encoder_cross_transformer_num_layers=2,
-        cot_seq_length=1,
-        cot_vocab_size=15,
-        log_every=100,
+        log_every=10,
         num_iterations=20_000,
         batch_size=4096,
         learning_rate=1e-4,
-        dummy_encoder=False,
-        num_heads=9,
-        emb_dim_per_head=16,
-        mlp_dim_factor=1,
-        run_name=("Cycle 1-15 SUPERVISED T2"),
+        run_name=("Cycle 1-15 RL joint_transformer T1"),
     )
 
     # import itertools
