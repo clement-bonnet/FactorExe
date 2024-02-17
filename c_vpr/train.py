@@ -1377,25 +1377,26 @@ if __name__ == "__main__":
     #     run_name="Cycle 1-4 RL baseline_1000 T1 dummy_encoder",
     # )
 
-    run_cot_joint_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=1,
-        eval_num_hops=1,
-        seq_length=10,
-        cot_seq_length=1,
-        cot_vocab_size=10,
-        transformer_num_repeat=1,
-        transformer_num_layers=1,
-        num_heads=9,
-        emb_dim_per_head=16,
-        mlp_dim_factor=1,
-        log_every=10,
-        num_iterations=5_000,
-        batch_size=4096,
-        learning_rate=1e-4,
-        run_name=("Cycle 1-10 RL joint_transformer T1"),
-    )
+    for seq_length in [15, 20, 25, 30, 35, 40]:
+        run_cot_joint_transformer_exp(
+            env_name="Cycle",
+            mode=MODE.RL,
+            train_num_hops=1,
+            eval_num_hops=1,
+            seq_length=seq_length,
+            cot_seq_length=1,
+            cot_vocab_size=seq_length,
+            transformer_num_repeat=1,
+            transformer_num_layers=1,
+            num_heads=9,
+            emb_dim_per_head=16,
+            mlp_dim_factor=1,
+            log_every=50,
+            num_iterations=10_000,
+            batch_size=4096,
+            learning_rate=1e-4,
+            run_name=(f"Cycle 1-{seq_length} RL joint_transformer T1"),
+        )
 
     # import itertools
 
