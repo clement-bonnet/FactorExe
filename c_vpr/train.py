@@ -65,7 +65,11 @@ class Trainer:
             raise ValueError(f"Unknown mode: {mode}")
         if mode in [MODE.COT, MODE.RL] and cot_start_token is None:
             raise ValueError("COT and RL modes require cot_start_token to be set")
-        if mode == MODE.SUPERVISED and model.cot_module_config is not None:
+        if (
+            mode == MODE.SUPERVISED
+            and isinstance(model, AugmentedTransformer)
+            and model.cot_module_config is not None
+        ):
             logging.warn(
                 "Got mode: SUPERVISED and cot_module: True. However, the CoTModule is not trained"
                 "in this mode. This means the tokens the encoder attends to are generated randomly"
@@ -269,7 +273,10 @@ class Trainer:
         return state, metrics
 
     def train_step_rl_joint_transformer(
-        self, state: TrainState, key: chex.PRNGKey
+        self,
+        state: TrainState,
+        key: chex.PRNGKey,
+        supervised: bool = False,
     ) -> tuple[TrainState, dict]:
         num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
 
@@ -282,7 +289,7 @@ class Trainer:
         sample_keys = jax.random.split(sample_key, self.batch_size)
         inputs, labels = jax.vmap(self._sample_n_hops_for_train)(sample_keys, num_hops)
 
-        def loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
+        def rl_loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
             cot_tokens_logits, cot_tokens = state.apply_fn(
                 variables={"params": params},
                 inputs=inputs,
@@ -309,11 +316,35 @@ class Trainer:
             logits = cot_tokens_logits[:, -1, :]
             return loss, (rl_loss, cot_entropy, logits)
 
-        grads, (rl_loss, cot_entropy, logits) = jax.grad(loss_fn, has_aux=True)(state.params)
+        def supervised_loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
+            cot_tokens_logits, _ = state.apply_fn(
+                variables={"params": params},
+                inputs=inputs,
+                deterministic=False,
+                num_hops=num_hops,
+                cot_sampling=True,
+                cot_key=cot_key,
+                rngs={"dropout": dropout_key},
+            )
+            cot_entropy = -jnp.mean(
+                jnp.sum(
+                    jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
+                )
+            )
+            logits = cot_tokens_logits[:, -1, :]
+            loss = cross_entropy_loss(logits, labels) - self.cot_entropy_weight * cot_entropy
+            return loss, (cot_entropy, logits)
+
+        if supervised:
+            grads, (cot_entropy, logits) = jax.grad(supervised_loss_fn, has_aux=True)(state.params)
+        else:
+            grads, (rl_loss, cot_entropy, logits) = jax.grad(rl_loss_fn, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
         grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
-        metrics.update(grad_norm=grad_norm, rl_loss=rl_loss, cot_entropy=cot_entropy)
+        metrics.update(grad_norm=grad_norm, cot_entropy=cot_entropy)
+        if not supervised:
+            metrics.update(rl_loss=rl_loss)
         return state, metrics
 
     def train_step_rl(  # noqa: CCR001
@@ -695,8 +726,10 @@ class Trainer:
                 state, metrics = jax.lax.scan(self.train_step_rl_cot_transformer, state, keys)
         elif isinstance(self.model, CoTJointTransformer):
             if self.mode == MODE.SUPERVISED:
-                raise NotImplementedError(
-                    "CoTJointTransformer does not support supervised training yet."
+                state, metrics = jax.lax.scan(
+                    functools.partial(self.train_step_rl_joint_transformer, supervised=True),
+                    state,
+                    keys,
                 )
             elif self.mode == MODE.COT:
                 raise NotImplementedError("CoTJointTransformer does not support COT training yet.")
@@ -1380,7 +1413,7 @@ if __name__ == "__main__":
     for seq_length in [15, 20, 25, 30, 35, 40]:
         run_cot_joint_transformer_exp(
             env_name="Cycle",
-            mode=MODE.RL,
+            mode=MODE.SUPERVISED,
             train_num_hops=1,
             eval_num_hops=1,
             seq_length=seq_length,
@@ -1392,10 +1425,10 @@ if __name__ == "__main__":
             emb_dim_per_head=16,
             mlp_dim_factor=1,
             log_every=50,
-            num_iterations=10_000,
+            num_iterations=5_000,
             batch_size=4096,
             learning_rate=1e-4,
-            run_name=(f"Cycle 1-{seq_length} RL joint_transformer T1"),
+            run_name=(f"Cycle 1-{seq_length} SUPERVISED joint_transformer T1"),
         )
 
     # import itertools
