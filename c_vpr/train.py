@@ -1422,12 +1422,13 @@ if __name__ == "__main__":
         transformer_num_layers=1,
         num_heads=6,
         emb_dim_per_head=16,
-        mlp_dim_factor=1,
+        mlp_dim_factor=4,
         log_every=1000,
         num_iterations=500_000,
-        batch_size=1024,
+        batch_size=512,
         learning_rate=1e-4,
-        run_name="Cycle 1-40 RL bs_1024 embed_6_16_1 joint_transformer T1",
+        cot_entropy_weight=5e-3,
+        run_name="Cycle 1-40 RL bs_512 embed_6_16_4 ent_5e-3 joint_transformer T1",
     )
 
     # import itertools
