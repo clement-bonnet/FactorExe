@@ -728,14 +728,25 @@ class Trainer:
                 functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
             )(keys)
             cot_key, key = jax.random.split(key)
-            logits, _ = state.apply_fn(
-                variables={"params": state.params},
-                inputs=inputs,
-                deterministic=True,
-                num_hops=jnp.full((self.eval_size,), num_hops),
-                cot_key=cot_key,
-                cot_sampling=cot_sampling,
-            )
+            if isinstance(self.model, CoTJointTransformer):
+                cot_token_logits, _ = state.apply_fn(
+                    variables={"params": state.params},
+                    inputs=inputs,
+                    deterministic=True,
+                    num_hops=jnp.full((self.eval_size,), num_hops),
+                    cot_key=cot_key,
+                    cot_sampling=cot_sampling,
+                )
+                logits = cot_token_logits[:, -1, :]
+            else:
+                logits, _ = state.apply_fn(
+                    variables={"params": state.params},
+                    inputs=inputs,
+                    deterministic=True,
+                    num_hops=jnp.full((self.eval_size,), num_hops),
+                    cot_key=cot_key,
+                    cot_sampling=cot_sampling,
+                )
             metrics.update(
                 {
                     f"eval/num_hops:{num_hops}/{k}": v
@@ -818,7 +829,7 @@ class Trainer:
         loss = cross_entropy_loss(logits=logits, labels=labels)
         accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
         metrics = {
-            "loss": loss,
+            "cross_entropy_loss": loss,
             "accuracy": accuracy,
         }
         return metrics
