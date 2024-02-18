@@ -315,7 +315,9 @@ class Trainer:
             cot_log_probs = jnp.sum(cot_log_probs, axis=-1)
             rl_loss = jnp.mean(-rewards * cot_log_probs)
             loss = self.rl_loss_weight_mixing * rl_loss - self.cot_entropy_weight * cot_entropy
-            logits = jnp.take_along_axis(cot_tokens_logits, task_index[:, None], axis=1).squeeze(1)
+            logits = jnp.take_along_axis(
+                cot_tokens_logits, task_index[:, None, None], axis=1
+            ).squeeze(1)
             return loss, (rl_loss, cot_entropy, logits)
 
         def supervised_loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
@@ -334,7 +336,9 @@ class Trainer:
                 )
             )
             task_index = num_hops
-            logits = jnp.take_along_axis(cot_tokens_logits, task_index[:, None], axis=1).squeeze(1)
+            logits = jnp.take_along_axis(
+                cot_tokens_logits, task_index[:, None, None], axis=1
+            ).squeeze(1)
             loss = cross_entropy_loss(logits, labels) - self.cot_entropy_weight * cot_entropy
             return loss, (cot_entropy, logits)
 
