@@ -762,7 +762,7 @@ class Trainer:
         if self.eval_num_hops is None:
             return metrics
         sample_keys = jax.random.split(key, len(self.eval_num_hops))
-        for task_index, (num_hops, sample_key) in enumerate(zip(self.eval_num_hops, sample_keys)):
+        for num_hops, sample_key in zip(self.eval_num_hops, sample_keys):
             keys = jax.random.split(sample_key, self.eval_size)
             inputs, labels = jax.vmap(
                 functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
@@ -777,6 +777,7 @@ class Trainer:
                     cot_key=cot_key,
                     cot_sampling=cot_sampling,
                 )
+                task_index = num_hops - 1
                 logits = cot_token_logits[:, task_index, :]
             else:
                 logits, _ = state.apply_fn(
