@@ -308,6 +308,31 @@ class Trainer:
             task_index = num_hops - 1
             answer_token = jnp.take_along_axis(cot_tokens, task_index[:, None], axis=1).squeeze(1)
             rewards = jnp.asarray(answer_token == labels, float)
+
+            if self.rl_baseline_batch_size is not None:
+                repeated_inputs = inputs[None].repeat(self.rl_baseline_batch_size, axis=0)
+                repeated_num_hops = num_hops[None].repeat(self.rl_baseline_batch_size, axis=0)
+                repeated_labels = labels[None].repeat(self.rl_baseline_batch_size, axis=0)
+                cot_keys = jax.random.split(cot_key, self.rl_baseline_batch_size)
+                dropout_keys = jax.random.split(dropout_key, self.rl_baseline_batch_size)
+                _, baseline_cot_tokens = jax.vmap(
+                    lambda inputs, num_hops, cot_key, dropout_key: state.apply_fn(
+                        variables={"params": params},
+                        inputs=inputs,
+                        deterministic=False,
+                        num_hops=num_hops,
+                        cot_sampling=True,
+                        cot_key=cot_key,
+                        rngs={"dropout": dropout_key},
+                    )
+                )(repeated_inputs, repeated_num_hops, cot_keys, dropout_keys)
+                repeated_task_index = repeated_num_hops - 1
+                baseline_answer_tokens = jnp.take_along_axis(
+                    baseline_cot_tokens, repeated_task_index[:, :, None], axis=-1
+                ).squeeze(-1)
+                baseline = jnp.mean(baseline_answer_tokens == repeated_labels, axis=0)
+                rewards -= jax.lax.stop_gradient(baseline)
+
             cot_all_log_probs = jax.nn.log_softmax(cot_tokens_logits, axis=-1)
             cot_log_probs = jnp.take_along_axis(
                 cot_all_log_probs, cot_tokens[..., None], axis=-1
@@ -1294,6 +1319,7 @@ def run_cot_joint_transformer_exp(  # noqa: CCR001
     cot_loss_weight_mixing: float = 1.0,
     cot_entropy_weight: float = 2e-3,
     rl_loss_weight_mixing: float = 1.0,
+    rl_baseline_batch_size: Optional[int] = None,
     decode_from_sampled_cot_tokens: bool = True,
     learning_rate: float = 1e-4,
     num_iterations: int = 500_000,
@@ -1374,6 +1400,7 @@ def run_cot_joint_transformer_exp(  # noqa: CCR001
         cot_loss_weight_mixing=cot_loss_weight_mixing,
         cot_entropy_weight=cot_entropy_weight,
         rl_loss_weight_mixing=rl_loss_weight_mixing,
+        rl_baseline_batch_size=rl_baseline_batch_size,
         decode_from_sampled_cot_tokens=decode_from_sampled_cot_tokens,
     )
     key = jax.random.PRNGKey(seed)
@@ -1422,30 +1449,11 @@ if __name__ == "__main__":
         mlp_dim_factor=4,
         log_every=500,
         num_iterations=100_000,
-        batch_size=1024,
+        batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=2e-3,
-        run_name="Cycle [1,2,3,4]-15 RL bs_1024 embed_12_16_4 ent_2e-3 joint_transformer T2",
-    )
-    run_cot_joint_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=[1, 2, 3, 4],
-        eval_num_hops=[1, 2, 3, 4],
-        seq_length=15,
-        cot_seq_length=4,
-        cot_vocab_size=15,
-        transformer_num_repeat=1,
-        transformer_num_layers=2,
-        num_heads=12,
-        emb_dim_per_head=16,
-        mlp_dim_factor=4,
-        log_every=500,
-        num_iterations=100_000,
-        batch_size=2048,
-        learning_rate=1e-4,
-        cot_entropy_weight=2e-3,
-        run_name="Cycle [1,2,3,4]-15 RL bs_2048 embed_12_16_4 ent_2e-3 joint_transformer T2",
+        rl_baseline_batch_size=10,
+        run_name="Cycle [1,2,3,4]-15 RL bs_512 baseline_10 embed_12_16_4 ent_2e-3 joint_transformer T2",  # noqa: E501
     )
     # run_cot_joint_transformer_exp(
     #     env_name="Cycle",
