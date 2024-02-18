@@ -305,7 +305,9 @@ class Trainer:
                     jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
                 )
             )
-            rewards = jnp.asarray(cot_tokens[:, -1] == labels, float)
+            task_index = num_hops
+            answer_token = jnp.take_along_axis(cot_tokens, task_index[:, None], axis=1).squeeze(1)
+            rewards = jnp.asarray(answer_token == labels, float)
             cot_all_log_probs = jax.nn.log_softmax(cot_tokens_logits, axis=-1)
             cot_log_probs = jnp.take_along_axis(
                 cot_all_log_probs, cot_tokens[..., None], axis=-1
@@ -313,7 +315,7 @@ class Trainer:
             cot_log_probs = jnp.sum(cot_log_probs, axis=-1)
             rl_loss = jnp.mean(-rewards * cot_log_probs)
             loss = self.rl_loss_weight_mixing * rl_loss - self.cot_entropy_weight * cot_entropy
-            logits = cot_tokens_logits[:, -1, :]
+            logits = jnp.take_along_axis(cot_tokens_logits, task_index[:, None], axis=1).squeeze(1)
             return loss, (rl_loss, cot_entropy, logits)
 
         def supervised_loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
@@ -331,7 +333,8 @@ class Trainer:
                     jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
                 )
             )
-            logits = cot_tokens_logits[:, -1, :]
+            task_index = num_hops
+            logits = jnp.take_along_axis(cot_tokens_logits, task_index[:, None], axis=1).squeeze(1)
             loss = cross_entropy_loss(logits, labels) - self.cot_entropy_weight * cot_entropy
             return loss, (cot_entropy, logits)
 
@@ -755,7 +758,7 @@ class Trainer:
         if self.eval_num_hops is None:
             return metrics
         sample_keys = jax.random.split(key, len(self.eval_num_hops))
-        for num_hops, sample_key in zip(self.eval_num_hops, sample_keys):
+        for task_index, (num_hops, sample_key) in enumerate(zip(self.eval_num_hops, sample_keys)):
             keys = jax.random.split(sample_key, self.eval_size)
             inputs, labels = jax.vmap(
                 functools.partial(self.env.sample_n_hops, num_hops=num_hops, return_target=True)
@@ -770,7 +773,7 @@ class Trainer:
                     cot_key=cot_key,
                     cot_sampling=cot_sampling,
                 )
-                logits = cot_token_logits[:, -1, :]
+                logits = cot_token_logits[:, task_index, :]
             else:
                 logits, _ = state.apply_fn(
                     variables={"params": state.params},
@@ -1413,6 +1416,26 @@ if __name__ == "__main__":
     run_cot_joint_transformer_exp(
         env_name="Cycle",
         mode=MODE.RL,
+        train_num_hops=[1, 2],
+        eval_num_hops=[1, 2],
+        seq_length=10,
+        cot_seq_length=2,
+        cot_vocab_size=10,
+        transformer_num_repeat=1,
+        transformer_num_layers=2,
+        num_heads=12,
+        emb_dim_per_head=16,
+        mlp_dim_factor=4,
+        log_every=500,
+        num_iterations=100_000,
+        batch_size=512,
+        learning_rate=1e-4,
+        cot_entropy_weight=2e-3,
+        run_name="Cycle [1,2]-10 RL bs_512 embed_12_16_4 ent_2e-3 joint_transformer T2",
+    )
+    run_cot_joint_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
         train_num_hops=1,
         eval_num_hops=1,
         seq_length=10,
@@ -1452,9 +1475,9 @@ if __name__ == "__main__":
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=[1, 2],
-        eval_num_hops=[1, 2],
+        mode=MODE.SUPERVISED,
+        train_num_hops=2,
+        eval_num_hops=2,
         seq_length=10,
         cot_seq_length=2,
         cot_vocab_size=10,
@@ -1468,27 +1491,7 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=2e-3,
-        run_name="Cycle [1,2]-10 RL bs_512 embed_12_16_4 ent_2e-3 joint_transformer T2",
-    )
-    run_cot_joint_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.SUPERVISED,
-        train_num_hops=1,
-        eval_num_hops=1,
-        seq_length=30,
-        cot_seq_length=1,
-        cot_vocab_size=30,
-        transformer_num_repeat=1,
-        transformer_num_layers=2,
-        num_heads=12,
-        emb_dim_per_head=16,
-        mlp_dim_factor=4,
-        log_every=1000,
-        num_iterations=500_000,
-        batch_size=512,
-        learning_rate=1e-4,
-        cot_entropy_weight=2e-3,
-        run_name="Cycle 1-30 SUPERVISED bs_512 embed_12_16_4 ent_2e-3 joint_transformer T1",
+        run_name="Cycle 2-10 SUPERVISED bs_512 embed_12_16_4 ent_2e-3 joint_transformer T2",
     )
 
     # import itertools
