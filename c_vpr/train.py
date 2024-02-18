@@ -305,7 +305,7 @@ class Trainer:
                     jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
                 )
             )
-            task_index = num_hops
+            task_index = num_hops - 1
             answer_token = jnp.take_along_axis(cot_tokens, task_index[:, None], axis=1).squeeze(1)
             rewards = jnp.asarray(answer_token == labels, float)
             cot_all_log_probs = jax.nn.log_softmax(cot_tokens_logits, axis=-1)
@@ -335,7 +335,7 @@ class Trainer:
                     jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
                 )
             )
-            task_index = num_hops
+            task_index = num_hops - 1
             logits = jnp.take_along_axis(
                 cot_tokens_logits, task_index[:, None, None], axis=1
             ).squeeze(1)
