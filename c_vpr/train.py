@@ -305,7 +305,8 @@ class Trainer:
                     jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
                 )
             )
-            task_index = num_hops - 1
+            # task_index = num_hops - 1
+            task_index = jnp.zeros_like(num_hops)
             answer_token = jnp.take_along_axis(cot_tokens, task_index[:, None], axis=1).squeeze(1)
             rewards = jnp.asarray(answer_token == labels, float)
 
@@ -803,7 +804,8 @@ class Trainer:
                     cot_key=cot_key,
                     cot_sampling=cot_sampling,
                 )
-                task_index = num_hops - 1
+                # task_index = num_hops - 1
+                task_index = jnp.zeros_like(num_hops)
                 logits = cot_token_logits[:, task_index, :]
             else:
                 logits, _ = state.apply_fn(
