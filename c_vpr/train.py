@@ -548,7 +548,8 @@ class Trainer:
                     ).sum(axis=-1) / non_diagonal_mask.sum(axis=-1)
                     rewards -= jax.lax.stop_gradient(baseline)
             else:
-                rewards = jax.lax.stop_gradient(-supervised_losses)
+                # rewards = jax.lax.stop_gradient(-supervised_losses)
+                rewards = jnp.asarray(cot_tokens[:, -1] == labels, float)
 
                 if self.rl_baseline_batch_size is not None:
                     repeated_inputs = inputs[None].repeat(self.rl_baseline_batch_size, axis=0)
