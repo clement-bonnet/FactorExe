@@ -1421,7 +1421,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=2,
+        cot_seq_length=1,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1433,7 +1433,7 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=1e-3,
-        run_name="Cycle 2-15 RL bs_512 embed_12_16_4 ent_1e-3 joint_transformer T2",
+        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_1e-3 joint_transformer T2",
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1441,7 +1441,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=2,
+        cot_seq_length=1,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1453,7 +1453,7 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=3e-3,
-        run_name="Cycle 2-15 RL bs_512 embed_12_16_4 ent_3e-3 joint_transformer T2",
+        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_3e-3 joint_transformer T2",
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1461,7 +1461,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=2,
+        cot_seq_length=1,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1473,7 +1473,7 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=1e-2,
-        run_name="Cycle 2-15 RL bs_512 embed_12_16_4 ent_1e-2 joint_transformer T2",
+        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_1e-2 joint_transformer T2",
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1481,7 +1481,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=2,
+        cot_seq_length=1,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1493,7 +1493,7 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=3e-2,
-        run_name="Cycle 2-15 RL bs_512 embed_12_16_4 ent_3e-2 joint_transformer T2",
+        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_3e-2 joint_transformer T2",
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1501,7 +1501,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=2,
+        cot_seq_length=1,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1513,7 +1513,7 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=1e-1,
-        run_name="Cycle 2-15 RL bs_512 embed_12_16_4 ent_1e-1 joint_transformer T2",
+        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_1e-1 joint_transformer T2",
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1521,7 +1521,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=2,
+        cot_seq_length=1,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1533,7 +1533,7 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=3e-1,
-        run_name="Cycle 2-15 RL bs_512 embed_12_16_4 ent_3e-1 joint_transformer T2",
+        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_3e-1 joint_transformer T2",
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1541,7 +1541,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=2,
+        cot_seq_length=1,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1553,7 +1553,7 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=1.0,
-        run_name="Cycle 2-15 RL bs_512 embed_12_16_4 ent_1e0 joint_transformer T2",
+        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_1e0 joint_transformer T2",
     )
 
     # run_cot_joint_transformer_exp(
