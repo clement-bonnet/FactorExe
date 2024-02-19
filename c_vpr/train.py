@@ -1448,12 +1448,12 @@ if __name__ == "__main__":
         emb_dim_per_head=16,
         mlp_dim_factor=4,
         log_every=500,
-        num_iterations=100_000,
+        num_iterations=300_000,
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=2e-3,
-        rl_baseline_batch_size=10,
-        run_name="Cycle [1,2,3,4]-15 RL bs_512 baseline_10 embed_12_16_4 ent_2e-3 joint_transformer T2",  # noqa: E501
+        rl_baseline_batch_size=32,
+        run_name="Cycle [1,2,3,4]-15 RL bs_512 baseline_32 embed_12_16_4 ent_2e-3 joint_transformer T2",  # noqa: E501
     )
     # run_cot_joint_transformer_exp(
     #     env_name="Cycle",
