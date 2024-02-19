@@ -1490,7 +1490,7 @@ if __name__ == "__main__":
         emb_dim_per_head=16,
         mlp_dim_factor=4,
         log_every=500,
-        num_iterations=300_000,
+        num_iterations=200_000,
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=0.0,
