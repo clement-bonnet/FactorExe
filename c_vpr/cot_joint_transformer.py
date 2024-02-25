@@ -118,6 +118,7 @@ class CoTJointTransformer(nn.Module):
         deterministic: bool,
         num_hops: Optional[chex.Array] = None,
         pad_mask: Optional[chex.Array] = None,
+        cot_tokens: Optional[chex.Array] = None,
         cot_sampling: bool = False,
         cot_key: Optional[chex.PRNGKey] = None,
     ) -> tuple[chex.Array, tuple[chex.Array, chex.Array]]:
@@ -128,6 +129,7 @@ class CoTJointTransformer(nn.Module):
             deterministic: if false dropout is applied otherwise it is not.
             num_hops: number of hops associated to the inputs.
             pad_mask: mask to apply on the inputs to avoid attending to padding tokens.
+            cot_tokens: optional chain of thoughts tokens to continue from.
             cot_sampling: if true, sample tokens in the forward pass. Otherwise, use argmax.
             cot_key: random key to sample tokens in the forward pass.
 
@@ -142,15 +144,27 @@ class CoTJointTransformer(nn.Module):
         inputs_embeddings = self.encode_inputs(inputs, deterministic, num_hops, pad_mask)
 
         # CoT autoregressive block.
-        cot_tokens = jnp.full(
-            (inputs.shape[0], self.config.cot_seq_length),
-            self.config.cot_vocab_size,
-            dtype=jnp.int32,
-        )
+        if cot_tokens is not None:
+            assert cot_tokens.ndim == 2
+            assert cot_tokens.shape[0] == inputs.shape[0]
+            cot_tokens_start_idx = cot_tokens.shape[1]
+            assert cot_tokens_start_idx < self.config.cot_seq_length
+            cot_tokens = jnp.pad(
+                cot_tokens,
+                ((0, 0), (0, self.config.cot_seq_length - cot_tokens_start_idx)),
+                constant_values=self.config.cot_vocab_size,
+            )
+        else:
+            cot_tokens = jnp.full(
+                (inputs.shape[0], self.config.cot_seq_length),
+                self.config.cot_vocab_size,
+                dtype=jnp.int32,
+            )
+            cot_tokens_start_idx = 0
         assert cot_key is not None or not cot_sampling
         # TODO: speed up for loop with jax.lax.scan
         cot_logits_list = []
-        for i in range(self.config.cot_seq_length):
+        for i in range(cot_tokens_start_idx, self.config.cot_seq_length):
             all_cot_logits = self.generate_logits(
                 cot_tokens=cot_tokens,
                 inputs_embeddings=inputs_embeddings,
