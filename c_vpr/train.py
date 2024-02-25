@@ -278,7 +278,7 @@ class Trainer:
         key: chex.PRNGKey,
         supervised: bool = False,
     ) -> tuple[TrainState, dict]:
-        num_hops_key, sample_key, cot_key, dropout_key = jax.random.split(key, 4)
+        num_hops_key, sample_key, key = jax.random.split(key, 3)
 
         num_hops = jax.random.choice(
             num_hops_key,
@@ -289,7 +289,8 @@ class Trainer:
         sample_keys = jax.random.split(sample_key, self.batch_size)
         inputs, labels = jax.vmap(self._sample_n_hops_for_train)(sample_keys, num_hops)
 
-        def rl_loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
+        def rl_loss_fn(params: dict, key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
+            cot_key, dropout_key = jax.random.split(key, 2)
             cot_tokens_logits, cot_tokens = state.apply_fn(
                 variables={"params": params},
                 inputs=inputs,
@@ -309,44 +310,61 @@ class Trainer:
             task_index = jnp.zeros_like(num_hops)
             answer_token = jnp.take_along_axis(cot_tokens, task_index[:, None], axis=1).squeeze(1)
             rewards = jnp.asarray(answer_token == labels, float)
+            # Compute returns by repeating rewards for each cot token.
+            returns = rewards[:, None].repeat(
+                cot_tokens.shape[1], axis=1
+            )  # (batch_size, cot_seq_len)
 
             if self.rl_baseline_batch_size is not None:
                 repeated_inputs = inputs[None].repeat(self.rl_baseline_batch_size, axis=0)
                 repeated_num_hops = num_hops[None].repeat(self.rl_baseline_batch_size, axis=0)
                 repeated_labels = labels[None].repeat(self.rl_baseline_batch_size, axis=0)
-                cot_keys = jax.random.split(cot_key, self.rl_baseline_batch_size)
-                dropout_keys = jax.random.split(dropout_key, self.rl_baseline_batch_size)
-                _, baseline_cot_tokens = jax.vmap(
-                    lambda inputs, num_hops, cot_key, dropout_key: state.apply_fn(
-                        variables={"params": params},
-                        inputs=inputs,
-                        deterministic=False,
-                        num_hops=num_hops,
-                        cot_sampling=True,
-                        cot_key=cot_key,
-                        rngs={"dropout": dropout_key},
-                    )
-                )(repeated_inputs, repeated_num_hops, cot_keys, dropout_keys)
+                repeated_cot_tokens = cot_tokens[None].repeat(self.rl_baseline_batch_size, axis=0)
                 repeated_task_index = repeated_num_hops - 1
-                baseline_answer_tokens = jnp.take_along_axis(
-                    baseline_cot_tokens, repeated_task_index[:, :, None], axis=-1
-                ).squeeze(-1)
-                baseline = jnp.mean(baseline_answer_tokens == repeated_labels, axis=0)
-                rewards -= jax.lax.stop_gradient(baseline)
+                baselines = []
+                for i in range(cot_tokens.shape[-1]):
+                    cot_key, dropout_key = jax.random.split(cot_key, 2)
+                    cot_keys = jax.random.split(cot_key, self.rl_baseline_batch_size)
+                    dropout_keys = jax.random.split(dropout_key, self.rl_baseline_batch_size)
+                    _, baseline_cot_tokens = jax.vmap(
+                        lambda inputs, num_hops, cot_key, dropout_key, cot_tokens: state.apply_fn(
+                            variables={"params": params},
+                            inputs=inputs,
+                            deterministic=False,
+                            num_hops=num_hops,
+                            cot_tokens=cot_tokens,
+                            cot_sampling=True,
+                            cot_key=cot_key,
+                            rngs={"dropout": dropout_key},
+                        )
+                    )(
+                        repeated_inputs,
+                        repeated_num_hops,
+                        cot_keys,
+                        dropout_keys,
+                        repeated_cot_tokens[:, :, :i] if i > 0 else None,
+                    )
+                    baseline_answer_tokens = jnp.take_along_axis(
+                        baseline_cot_tokens, repeated_task_index[:, :, None], axis=-1
+                    ).squeeze(-1)
+                    baseline = jnp.mean(baseline_answer_tokens == repeated_labels, axis=0)
+                    baselines.append(baseline)
+                baselines = jnp.stack(baselines, axis=-1)
+                returns -= jax.lax.stop_gradient(baselines)
 
             cot_all_log_probs = jax.nn.log_softmax(cot_tokens_logits, axis=-1)
             cot_log_probs = jnp.take_along_axis(
                 cot_all_log_probs, cot_tokens[..., None], axis=-1
             ).squeeze(-1)
-            cot_log_probs = jnp.sum(cot_log_probs, axis=-1)
-            rl_loss = jnp.mean(-rewards * cot_log_probs)
+            rl_loss = jnp.mean(-returns * cot_log_probs)
             loss = self.rl_loss_weight_mixing * rl_loss - self.cot_entropy_weight * cot_entropy
             logits = jnp.take_along_axis(
                 cot_tokens_logits, task_index[:, None, None], axis=1
             ).squeeze(1)
             return loss, (rl_loss, cot_entropy, logits)
 
-        def supervised_loss_fn(params: dict) -> tuple[TrainState, chex.Array]:
+        def supervised_loss_fn(params: dict, key: chex.PRNGKey) -> tuple[TrainState, chex.Array]:
+            cot_key, dropout_key = jax.random.split(key, 2)
             cot_tokens_logits, _ = state.apply_fn(
                 variables={"params": params},
                 inputs=inputs,
@@ -369,9 +387,13 @@ class Trainer:
             return loss, (cot_entropy, logits)
 
         if supervised:
-            grads, (cot_entropy, logits) = jax.grad(supervised_loss_fn, has_aux=True)(state.params)
+            grads, (cot_entropy, logits) = jax.grad(supervised_loss_fn, has_aux=True)(
+                state.params, key
+            )
         else:
-            grads, (rl_loss, cot_entropy, logits) = jax.grad(rl_loss_fn, has_aux=True)(state.params)
+            grads, (rl_loss, cot_entropy, logits) = jax.grad(rl_loss_fn, has_aux=True)(
+                state.params, key
+            )
         state = state.apply_gradients(grads=grads)
         metrics = self.compute_metrics(logits, labels)
         grad_norm = jnp.sqrt(sum([jnp.sum(x**2) for x in jax.tree_util.tree_leaves(grads)]))
@@ -1423,7 +1445,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=1,
+        cot_seq_length=2,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1435,7 +1457,8 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=1e-3,
-        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_1e-3 joint_transformer T2",
+        rl_baseline_batch_size=10,
+        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_1e-3 joint_transformer T2",  # noqa: E501
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1443,7 +1466,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=1,
+        cot_seq_length=2,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1455,7 +1478,8 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=3e-3,
-        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_3e-3 joint_transformer T2",
+        rl_baseline_batch_size=10,
+        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_3e-3 joint_transformer T2",  # noqa: E501
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1463,7 +1487,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=1,
+        cot_seq_length=2,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1475,7 +1499,8 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=1e-2,
-        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_1e-2 joint_transformer T2",
+        rl_baseline_batch_size=10,
+        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_1e-2 joint_transformer T2",  # noqa: E501
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1483,7 +1508,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=1,
+        cot_seq_length=2,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1495,7 +1520,8 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=3e-2,
-        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_3e-2 joint_transformer T2",
+        rl_baseline_batch_size=10,
+        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_3e-2 joint_transformer T2",  # noqa: E501
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1503,7 +1529,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=1,
+        cot_seq_length=2,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1515,7 +1541,8 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=1e-1,
-        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_1e-1 joint_transformer T2",
+        rl_baseline_batch_size=10,
+        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_1e-1 joint_transformer T2",  # noqa: E501
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1523,7 +1550,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=1,
+        cot_seq_length=2,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1535,7 +1562,8 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=3e-1,
-        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_3e-1 joint_transformer T2",
+        rl_baseline_batch_size=10,
+        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_3e-1 joint_transformer T2",  # noqa: E501
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1543,7 +1571,7 @@ if __name__ == "__main__":
         train_num_hops=2,
         eval_num_hops=2,
         seq_length=15,
-        cot_seq_length=1,
+        cot_seq_length=2,
         cot_vocab_size=15,
         transformer_num_repeat=1,
         transformer_num_layers=2,
@@ -1555,7 +1583,8 @@ if __name__ == "__main__":
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=1.0,
-        run_name="Cycle 2-15 RL 1_CoT bs_512 embed_12_16_4 ent_1e0 joint_transformer T2",
+        rl_baseline_batch_size=10,
+        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_1e0 joint_transformer T2",  # noqa: E501
     )
 
     # run_cot_joint_transformer_exp(
