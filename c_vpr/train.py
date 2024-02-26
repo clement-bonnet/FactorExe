@@ -1471,12 +1471,75 @@ if __name__ == "__main__":
         emb_dim_per_head=16,
         mlp_dim_factor=4,
         log_every=500,
-        num_iterations=300_000,
+        num_iterations=200_000,
+        batch_size=512,
+        learning_rate=1e-4,
+        cot_entropy_weight=0.0,
+        rl_baseline_batch_size=None,
+        run_name="Cycle 2-15 RL ent_0 bs_512 embed_12_16_4 joint_transformer T2",  # noqa: E501
+    )
+    run_cot_joint_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=2,
+        eval_num_hops=2,
+        seq_length=15,
+        cot_seq_length=2,
+        cot_vocab_size=15,
+        transformer_num_repeat=1,
+        transformer_num_layers=2,
+        num_heads=12,
+        emb_dim_per_head=16,
+        mlp_dim_factor=4,
+        log_every=500,
+        num_iterations=200_000,
+        batch_size=512,
+        learning_rate=1e-4,
+        cot_entropy_weight=0.0,
+        rl_baseline_batch_size=10,
+        run_name="Cycle 2-15 RL state_baseline_10 ent_0 bs_512 embed_12_16_4 joint_transformer T2",  # noqa: E501
+    )
+    run_cot_joint_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=2,
+        eval_num_hops=2,
+        seq_length=15,
+        cot_seq_length=2,
+        cot_vocab_size=15,
+        transformer_num_repeat=1,
+        transformer_num_layers=2,
+        num_heads=12,
+        emb_dim_per_head=16,
+        mlp_dim_factor=4,
+        log_every=500,
+        num_iterations=200_000,
+        batch_size=512,
+        learning_rate=1e-4,
+        cot_entropy_weight=1e-3,
+        rl_baseline_batch_size=None,
+        run_name="Cycle 2-15 RL ent_1e-3 bs_512 embed_12_16_4 joint_transformer T2",  # noqa: E501
+    )
+    run_cot_joint_transformer_exp(
+        env_name="Cycle",
+        mode=MODE.RL,
+        train_num_hops=2,
+        eval_num_hops=2,
+        seq_length=15,
+        cot_seq_length=2,
+        cot_vocab_size=15,
+        transformer_num_repeat=1,
+        transformer_num_layers=2,
+        num_heads=12,
+        emb_dim_per_head=16,
+        mlp_dim_factor=4,
+        log_every=500,
+        num_iterations=200_000,
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=1e-3,
         rl_baseline_batch_size=10,
-        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_1e-3 joint_transformer T2",  # noqa: E501
+        run_name="Cycle 2-15 RL state_baseline_10 ent_1e-3 bs_512 embed_12_16_4 joint_transformer T2",  # noqa: E501
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1492,12 +1555,12 @@ if __name__ == "__main__":
         emb_dim_per_head=16,
         mlp_dim_factor=4,
         log_every=500,
-        num_iterations=300_000,
+        num_iterations=200_000,
         batch_size=512,
         learning_rate=1e-4,
-        cot_entropy_weight=3e-3,
-        rl_baseline_batch_size=10,
-        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_3e-3 joint_transformer T2",  # noqa: E501
+        cot_entropy_weight=1e-2,
+        rl_baseline_batch_size=None,
+        run_name="Cycle 2-15 RL ent_1e-2 bs_512 embed_12_16_4 joint_transformer T2",  # noqa: E501
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1513,12 +1576,12 @@ if __name__ == "__main__":
         emb_dim_per_head=16,
         mlp_dim_factor=4,
         log_every=500,
-        num_iterations=300_000,
+        num_iterations=200_000,
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=1e-2,
         rl_baseline_batch_size=10,
-        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_1e-2 joint_transformer T2",  # noqa: E501
+        run_name="Cycle 2-15 RL state_baseline_10 ent_1e-2 bs_512 embed_12_16_4 joint_transformer T2",  # noqa: E501
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1534,12 +1597,12 @@ if __name__ == "__main__":
         emb_dim_per_head=16,
         mlp_dim_factor=4,
         log_every=500,
-        num_iterations=300_000,
+        num_iterations=200_000,
         batch_size=512,
         learning_rate=1e-4,
-        cot_entropy_weight=3e-2,
-        rl_baseline_batch_size=10,
-        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_3e-2 joint_transformer T2",  # noqa: E501
+        cot_entropy_weight=1e-1,
+        rl_baseline_batch_size=None,
+        run_name="Cycle 2-15 RL ent_1e-1 bs_512 embed_12_16_4 joint_transformer T2",  # noqa: E501
     )
     run_cot_joint_transformer_exp(
         env_name="Cycle",
@@ -1555,54 +1618,12 @@ if __name__ == "__main__":
         emb_dim_per_head=16,
         mlp_dim_factor=4,
         log_every=500,
-        num_iterations=300_000,
+        num_iterations=200_000,
         batch_size=512,
         learning_rate=1e-4,
         cot_entropy_weight=1e-1,
         rl_baseline_batch_size=10,
-        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_1e-1 joint_transformer T2",  # noqa: E501
-    )
-    run_cot_joint_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=2,
-        eval_num_hops=2,
-        seq_length=15,
-        cot_seq_length=2,
-        cot_vocab_size=15,
-        transformer_num_repeat=1,
-        transformer_num_layers=2,
-        num_heads=12,
-        emb_dim_per_head=16,
-        mlp_dim_factor=4,
-        log_every=500,
-        num_iterations=300_000,
-        batch_size=512,
-        learning_rate=1e-4,
-        cot_entropy_weight=3e-1,
-        rl_baseline_batch_size=10,
-        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_3e-1 joint_transformer T2",  # noqa: E501
-    )
-    run_cot_joint_transformer_exp(
-        env_name="Cycle",
-        mode=MODE.RL,
-        train_num_hops=2,
-        eval_num_hops=2,
-        seq_length=15,
-        cot_seq_length=2,
-        cot_vocab_size=15,
-        transformer_num_repeat=1,
-        transformer_num_layers=2,
-        num_heads=12,
-        emb_dim_per_head=16,
-        mlp_dim_factor=4,
-        log_every=500,
-        num_iterations=300_000,
-        batch_size=512,
-        learning_rate=1e-4,
-        cot_entropy_weight=1.0,
-        rl_baseline_batch_size=10,
-        run_name="Cycle 2-15 RL state_baseline_10 bs_512 embed_12_16_4 ent_1e0 joint_transformer T2",  # noqa: E501
+        run_name="Cycle 2-15 RL state_baseline_10 ent_1e-1 bs_512 embed_12_16_4 joint_transformer T2",  # noqa: E501
     )
 
     # run_cot_joint_transformer_exp(
