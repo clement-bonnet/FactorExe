@@ -306,8 +306,7 @@ class Trainer:
                     jax.nn.log_softmax(cot_tokens_logits) * jax.nn.softmax(cot_tokens_logits), -1
                 )
             )
-            # task_index = num_hops - 1
-            task_index = jnp.zeros_like(num_hops)
+            task_index = num_hops - 1
             answer_token = jnp.take_along_axis(cot_tokens, task_index[:, None], axis=1).squeeze(1)
             rewards = jnp.asarray(answer_token == labels, float)
             # Compute returns by repeating rewards for each cot token.
@@ -807,6 +806,7 @@ class Trainer:
         """Note that when using chain of thought, if cot_sampling is False, we evaluate the
         model using the argmax of the cot logits, which is equivalent to sampling using a
         temperature of 0."""
+        label = "eval" if not cot_sampling else "eval_cot_sampling"
         metrics: dict[str, chex.Array] = {}
         if self.eval_num_hops is None:
             return metrics
@@ -818,7 +818,7 @@ class Trainer:
             )(keys)
             cot_key, key = jax.random.split(key)
             if isinstance(self.model, CoTJointTransformer):
-                cot_token_logits, _ = state.apply_fn(
+                cot_token_logits, cot_tokens = state.apply_fn(
                     variables={"params": state.params},
                     inputs=inputs,
                     deterministic=True,
@@ -826,9 +826,25 @@ class Trainer:
                     cot_key=cot_key,
                     cot_sampling=cot_sampling,
                 )
-                # task_index = num_hops - 1
-                task_index = jnp.zeros_like(num_hops)
+                task_index = num_hops - 1
                 logits = cot_token_logits[:, task_index, :]
+                # New forward pass with modified cot_tokens.
+                modified_cot_token_logits, _ = state.apply_fn(
+                    variables={"params": state.params},
+                    inputs=inputs,
+                    deterministic=True,
+                    num_hops=jnp.full((self.eval_size,), num_hops),
+                    cot_tokens=jax.random.permutation(key, cot_tokens[:, :task_index]),
+                    cot_key=cot_key,
+                    cot_sampling=cot_sampling,
+                )
+                modified_logits = modified_cot_token_logits[:, task_index, :]
+                metrics.update(
+                    {
+                        f"{label}_adversarial/num_hops:{num_hops}/{k}": v
+                        for k, v in self.compute_metrics(modified_logits, labels).items()
+                    }
+                )
             else:
                 logits, _ = state.apply_fn(
                     variables={"params": state.params},
@@ -840,7 +856,7 @@ class Trainer:
                 )
             metrics.update(
                 {
-                    f"eval/num_hops:{num_hops}/{k}": v
+                    f"{label}/num_hops:{num_hops}/{k}": v
                     for k, v in self.compute_metrics(logits, labels).items()
                 }
             )
@@ -890,16 +906,18 @@ class Trainer:
     ) -> TrainState:
         jit_train_epoch = jax.jit(functools.partial(self.train_epoch, num_steps=log_every))
         jit_eval = jax.jit(self.eval)
+        jit_eval_deterministic = jax.jit(functools.partial(self.eval, cot_sampling=False))
         jit_generate_cot_samples = jax.jit(
             functools.partial(self.generate_cot_samples, num_samples=5)
         )
         num_epochs = num_iterations // log_every
         for epoch in trange(1, num_epochs + 1):
-            key, epoch_key, eval_key = jax.random.split(key, 3)
+            key, epoch_key, eval_key1, eval_key2, test_key = jax.random.split(key, 5)
             state, metrics = jit_train_epoch(state, epoch_key)
-            metrics.update(jit_eval(state, eval_key))
+            metrics.update(jit_eval(state, eval_key1))
+            metrics.update(jit_eval_deterministic(state, eval_key2))
             if self.mode in [MODE.COT, MODE.RL]:
-                test_metrics = jit_generate_cot_samples(state, eval_key)
+                test_metrics = jit_generate_cot_samples(state, test_key)
                 for k, (inputs, labels, cot_tokens) in test_metrics.items():
                     img = Image.new("RGB", (500, 350), color=(0, 0, 0))
                     draw = ImageDraw.Draw(img)
