@@ -86,3 +86,4 @@ On a tangent, two other applications could emerge. First, one could even imagine
 - [Neural GPUs Learn Algorithms, [Kaiser & Sutskever, 2015]](https://arxiv.org/abs/1511.08228)
 - [Self-Discover: Large Language Models Self-Compose Reasoning Structures, [Zhou et al., 2024]](https://arxiv.org/abs/2402.03620)
 - [The Unreasonable Ineffectiveness of the Deeper Layers, [Gromov et al., 2024]](https://arxiv.org/abs/2403.17887)
+- [Let's Think Dot by Dot: Hidden Computation in Transformer Language Models, [Pfau et al., 2024]](https://arxiv.org/abs/2404.15758)
